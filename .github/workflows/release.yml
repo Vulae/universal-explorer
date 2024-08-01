@@ -35,13 +35,13 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Build project
-        run: cargo build --release ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Upload binary to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/${{ matrix.filename }}
+          file: target/${{ matrix.target }}/release/${{ matrix.filename }}
           asset_name: ${{ matrix.filename }}
           tag: ${{ github.ref }}
           overwrite: true
