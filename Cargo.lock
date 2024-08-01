@@ -1181,7 +1181,7 @@ dependencies = [
  "glow",
  "glutin",
  "glutin-winit",
- "image",
+ "image 0.25.2",
  "js-sys",
  "log",
  "objc2 0.5.2",
@@ -1877,9 +1877,8 @@ dependencies = [
 
 [[package]]
 name = "image"
-version = "0.25.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99314c8a2152b8ddb211f924cdae532d8c5e4c8bb54728e12fff1b0cd5963a10"
+version = "0.25.1"
+source = "git+https://github.com/Murad-Awad/image?branch=upgrade-zune#15355ed2823d597a49f9f28d4abb98e08a258238"
 dependencies = [
  "bytemuck",
  "byteorder-lite",
@@ -1896,6 +1895,18 @@ dependencies = [
  "tiff",
  "zune-core",
  "zune-jpeg",
+]
+
+[[package]]
+name = "image"
+version = "0.25.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99314c8a2152b8ddb211f924cdae532d8c5e4c8bb54728e12fff1b0cd5963a10"
+dependencies = [
+ "bytemuck",
+ "byteorder-lite",
+ "num-traits",
+ "png",
 ]
 
 [[package]]
@@ -3328,9 +3339,9 @@ dependencies = [
 
 [[package]]
 name = "target-lexicon"
-version = "0.12.15"
+version = "0.12.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4873307b7c257eddcb50c9bedf158eb669578359fb28428bef438fec8e6ba7c2"
+checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 
 [[package]]
 name = "tempfile"
@@ -3477,7 +3488,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "winnow 0.6.16",
+ "winnow 0.6.18",
 ]
 
 [[package]]
@@ -3592,7 +3603,7 @@ dependencies = [
  "eframe",
  "egui",
  "env_logger",
- "image",
+ "image 0.25.1",
  "rayon",
  "regex",
  "rfd",
@@ -4379,9 +4390,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.6.16"
+version = "0.6.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b480ae9340fc261e6be3e95a1ba86d54ae3f9171132a73ce8d4bbaf68339507c"
+checksum = "68a9bda4691f099d435ad181000724da8e5899daa10713c2d432552b9ccd3a6f"
 dependencies = [
  "memchr",
 ]
@@ -4609,9 +4620,9 @@ dependencies = [
 
 [[package]]
 name = "zune-core"
-version = "0.4.12"
+version = "0.5.0-rc2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f423a2c17029964870cfaabb1f13dfab7d092a62a29a89264f4d36990ca414a"
+checksum = "0fa5491574238487afaf76a17d1907b47eaace69e97720b8486d584dfca013dc"
 
 [[package]]
 name = "zune-inflate"
@@ -4624,9 +4635,9 @@ dependencies = [
 
 [[package]]
 name = "zune-jpeg"
-version = "0.4.13"
+version = "0.5.0-rc2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16099418600b4d8f028622f73ff6e3deaabdff330fb9a2a131dea781ee8b0768"
+checksum = "d6e1b91c3b508b590945d61560be96449641b504a94f42f1a5594161b2d328ea"
 dependencies = [
  "zune-core",
 ]

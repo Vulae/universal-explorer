@@ -10,17 +10,16 @@ A CLI may be implemented in the future to allow for automation of extracting.
 
 # [Supported Formats](#supported-formats)
 
-* Image formats
-    * image/png, image/jpeg, image/webp
+* Common image formats
 * Source Engine
-    * .vpk archive
-    * .vtf texture
+    * `.vpk` archive
+    * `.vtf` texture
 
 # [Unimplemented Formats](#unimplemented-formats)
 
 Some formats that will most likely be implemented in the future.
 
-* .zip archive
+* `.zip` archive
 * Unity game engine assets
 * Godot game engine archive
 * Ren'Py game engine archive

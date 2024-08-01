@@ -10,6 +10,7 @@ jobs:
   build:
     name: Release
     runs-on: ubuntu-latest
+    permissions: write-all
 
     strategy:
       fail-fast: false
@@ -37,7 +38,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Install linker
-        if: ${{ matrix.linker_package }} != null
+        if: matrix.linker_package != null
         run: sudo apt-get install -y ${{ matrix.linker_package }}
 
       - name: Build project
