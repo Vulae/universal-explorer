@@ -10,9 +10,18 @@ use anyhow::Result;
 
 
 pub fn image_egui_handle(image: &DynamicImage, ctx: &Context) -> TextureHandle {
-    let pixels_buf = image.to_rgba8();
-    let pixels: image::FlatSamples<&[u8]> = pixels_buf.as_flat_samples();
-    let image = ColorImage::from_rgba_unmultiplied([ image.width() as _, image.height() as _ ], pixels.as_slice());
+    // TODO: Probably want to make my own texture loader because the build in one iterates over every pixel to transform them, Which is not necessary I think.
+    let image = match image {
+        DynamicImage::ImageRgba8(rgba8) => {
+            ColorImage::from_rgba_premultiplied(
+            [ rgba8.width() as usize, rgba8.height() as usize ],
+            rgba8.as_flat_samples().as_slice(),
+        )},
+        image => ColorImage::from_rgba_premultiplied(
+            [ image.width() as usize, image.height() as usize ],
+            image.to_rgba8().as_flat_samples().as_slice(),
+        ),
+    };
 
     let mut options = TextureOptions::default();
     if (image.width() * image.height()) <= 4096 {

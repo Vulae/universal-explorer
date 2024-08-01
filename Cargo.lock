@@ -3593,6 +3593,7 @@ dependencies = [
  "egui",
  "env_logger",
  "image",
+ "rayon",
  "regex",
  "rfd",
  "uuid",

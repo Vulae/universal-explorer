@@ -1,76 +1,79 @@
 
 // Alot of code stolen from: https://github.com/UniversalGameExtraction/texture2ddecoder
 // TODO: Make decoding faster.
+// There's probably alot of tiny optimizations to be made.
+// Definitely when loading values from data
+// & writing to &mut out
+// & decoded_rows_to_image can go faster by coping data by pixel rows.
 
-use image::RgbaImage;
+use image::{Pixel, Rgb, Rgba, RgbaImage};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 
 
-type RGB888 = (u8, u8, u8);
-type RGBA8888 = (u8, u8, u8, u8);
-
-fn decode_rgb565(d: u16) -> RGB888 {
-    (
+fn decode_rgb565(d: u16) -> Rgb<u8> {
+    Rgb([
         (d >> 8 & 0xf8) as u8 | (d >> 13) as u8,
         (d >> 3 & 0xfc) as u8 | (d >> 9 & 3) as u8,
         (d << 3) as u8 | (d >> 2 & 7) as u8,
-    )
+    ])
 }
 
-fn rgb888_lerp_13(rgb0: RGB888, rgb1: RGB888) -> RGB888 {
-    (
-        (((rgb0.0 as u16) * 2 + (rgb1.0 as u16)) / 3) as u8,
-        (((rgb0.1 as u16) * 2 + (rgb1.1 as u16)) / 3) as u8,
-        (((rgb0.2 as u16) * 2 + (rgb1.2 as u16)) / 3) as u8,
-    )
+fn rgb888_lerp_13(rgb0: Rgb<u8>, rgb1: Rgb<u8>) -> Rgb<u8> {
+    Rgb([
+        (((rgb0.0[0] as u16) * 2 + (rgb1.0[0] as u16)) / 3) as u8,
+        (((rgb0.0[1] as u16) * 2 + (rgb1.0[1] as u16)) / 3) as u8,
+        (((rgb0.0[2] as u16) * 2 + (rgb1.0[2] as u16)) / 3) as u8,
+    ])
 }
 
-fn rgb888_lerp_12(rgb0: RGB888, rgb1: RGB888) -> RGB888 {
-    (
-        (((rgb0.0 as u16) + (rgb1.0 as u16)) / 2) as u8,
-        (((rgb0.1 as u16) + (rgb1.1 as u16)) / 2) as u8,
-        (((rgb0.2 as u16) + (rgb1.2 as u16)) / 2) as u8,
-    )
-}
-
-fn rgb888_to_rgba8888(rgb: RGB888) -> RGBA8888 {
-    (rgb.0, rgb.1, rgb.2, 255)
+fn rgb888_lerp_12(rgb0: Rgb<u8>, rgb1: Rgb<u8>) -> Rgb<u8> {
+    Rgb([
+        (((rgb0.0[0] as u16) + (rgb1.0[0] as u16)) / 2) as u8,
+        (((rgb0.0[1] as u16) + (rgb1.0[1] as u16)) / 2) as u8,
+        (((rgb0.0[2] as u16) + (rgb1.0[2] as u16)) / 2) as u8,
+    ])
 }
 
 
 
-fn decode_bc1_block(data: &[u8], out: &mut [u8], extra_color: RGBA8888) {
+fn decode_bc1_block(data: &[u8], extra_color: &Rgba<u8>, out: &mut [u8], num_blocks_x: u32, block_x: u32) {
     let q0 = u16::from_le_bytes([data[0], data[1]]);
     let q1 = u16::from_le_bytes([data[2], data[3]]);
     let rgb0 = decode_rgb565(q0);
     let rgb1 = decode_rgb565(q1);
 
-    let mut palette: [RGBA8888; 4] = [
-        rgb888_to_rgba8888(rgb0),
-        rgb888_to_rgba8888(rgb1),
-        RGBA8888::default(),
-        RGBA8888::default(),
+    let mut palette: [Rgba<u8>; 4] = [
+        rgb0.to_rgba(),
+        rgb1.to_rgba(),
+        Rgba([ 0, 0, 0, 0 ]),
+        Rgba([ 0, 0, 0, 0 ]),
     ];
     if q0 > q1 {
-        palette[2] = rgb888_to_rgba8888(rgb888_lerp_13(rgb0, rgb1));
-        palette[3] = rgb888_to_rgba8888(rgb888_lerp_13(rgb1, rgb0));
+        palette[2] = rgb888_lerp_13(rgb0, rgb1).to_rgba();
+        palette[3] = rgb888_lerp_13(rgb1, rgb0).to_rgba();
     } else {
-        palette[2] = rgb888_to_rgba8888(rgb888_lerp_12(rgb0, rgb1));
-        palette[3] = extra_color;
+        palette[2] = rgb888_lerp_12(rgb0, rgb1).to_rgba();
+        palette[3] = extra_color.clone();
     }
 
     let indices: u32 = u32::from_le_bytes([ data[4], data[5], data[6], data[7] ]);
+
     for pi in 0..16 {
         let index = (indices >> (pi << 1)) & 0b11;
         let color = palette[index as usize];
-        out[pi*4 + 0] = color.0;
-        out[pi*4 + 1] = color.1;
-        out[pi*4 + 2] = color.2;
-        out[pi*4 + 3] = color.3;
+
+        let x = (block_x << 2) + (pi & 0b11);
+        let y = pi >> 2;
+        let out_index = ((x + y * (num_blocks_x << 2)) << 2) as usize;
+        out[out_index + 0] = color.0[0];
+        out[out_index + 1] = color.0[1];
+        out[out_index + 2] = color.0[2];
+        out[out_index + 3] = color.0[3];
     }
 }
 
-fn decode_bc3_alpha_block(data: &[u8], out: &mut [u8]) {
+fn decode_bc3_alpha_block(data: &[u8], out: &mut [u8], num_blocks_x: u32, block_x: u32) {
     let a0 = data[0];
     let a1 = data[1];
     
@@ -95,71 +98,70 @@ fn decode_bc3_alpha_block(data: &[u8], out: &mut [u8]) {
     for pi in 0..16 {
         let index = (indices >> (pi * 3)) & 0b111;
         let alpha = palette[index as usize];
-        out[pi*4 + 3] = alpha;
+
+        let x = (block_x << 2) + (pi & 0b11);
+        let y = pi >> 2;
+        let out_index = (x + y * (num_blocks_x << 2)) << 2;
+        out[out_index as usize + 3] = alpha;
     }
 }
 
 
 
-fn copy_block_buffer(block_x: usize, block_y: usize, width: usize, height: usize, block_width: usize, block_height: usize, buffer: &[u8], image: &mut [u8]) {
-    let x = block_x * block_width;
-    let y = block_y * block_height;
-    for dy in 0..block_height {
-        for dx in 0..block_width {
-            let x = x + dx;
-            let y = y + dy;
-            if x >= width || y >= height {
-                continue;
-            }
-            let buffer_index = (dx + dy * block_width) * 4;
-            let image_index = (x + y * width) * 4;
-            image[image_index..(image_index + 4)].copy_from_slice(&buffer[buffer_index..(buffer_index + 4)]);
-        }
-    }
-}
+pub fn decoded_rows_to_image(decoded_rows: Vec<Vec<u8>>, width: u32, height: u32) -> RgbaImage {
+    let num_blocks_x = width.div_ceil(4);
 
-fn blocks<F>(data: &[u8], out: &mut [u8], width: usize, height: usize, block_width: usize, block_height: usize, block_size: usize, callback: F)
-where 
-    F: Fn(&[u8], &mut [u8])
-{
-    let num_blocks_x = width.div_ceil(block_width);
-    let num_blocks_y = height.div_ceil(block_height);
-
-    let mut data_offset: usize = 0;
-
-    let mut decoded = vec![0u8; block_width * block_height * 4];
-    for by in 0..num_blocks_y {
-        for bx in 0..num_blocks_x {
-            callback(&data[data_offset..(data_offset + block_size)], &mut decoded);
-            copy_block_buffer(bx, by, width, height, block_width, block_height, &decoded, out);
-            data_offset += block_size;
-        }
-    }
-}
-
-
-
-
-
-pub fn decode_bc1(data: &[u8], width: u32, height: u32, extra_color: RGBA8888) -> RgbaImage {
-    let mut out = vec![0u8; (width as usize) * (height as usize) * 4];
-
-    blocks(data, &mut out, width as usize, height as usize, 4, 4, 8, |data, out| {
-        decode_bc1_block(data, out, extra_color);
+    let mut out = RgbaImage::new(width, height);
+    
+    out.par_enumerate_pixels_mut().for_each(|(x, y, pixel)| {
+        let decoded_row = &decoded_rows[(y >> 2) as usize];
+        let decoded_index = ((x + (y & 0b11) * (num_blocks_x << 2)) << 2) as usize;
+        pixel.0[0] = decoded_row[decoded_index + 0];
+        pixel.0[1] = decoded_row[decoded_index + 1];
+        pixel.0[2] = decoded_row[decoded_index + 2];
+        pixel.0[3] = decoded_row[decoded_index + 3];
     });
 
-    RgbaImage::from_raw(width, height, out).unwrap()
+    out
+}
+
+
+
+pub fn decode_bc1(data: &[u8], width: u32, height: u32, extra_color: Rgba<u8>) -> RgbaImage {
+    let num_blocks_x = width.div_ceil(4);
+    let num_blocks_y = height.div_ceil(4);
+
+    let decoded_rows = (0..num_blocks_y).into_par_iter().map(|block_y| {
+        let mut decoded_row = vec![0u8; (num_blocks_x as usize) << 6];
+
+        (0..num_blocks_x).for_each(|block_x| {
+            let data_offset = ((block_x as usize) + (block_y as usize) * (num_blocks_x as usize)) << 3;
+            decode_bc1_block(&data[data_offset..], &extra_color, &mut decoded_row, num_blocks_x, block_x);
+        });
+
+        decoded_row
+    }).collect::<Vec<_>>();
+
+    decoded_rows_to_image(decoded_rows, width, height)
 }
 
 pub fn decode_bc3(data: &[u8], width: u32, height: u32) -> RgbaImage {
-    let mut out = vec![0u8; (width as usize) * (height as usize) * 4];
+    let num_blocks_x = width.div_ceil(4);
+    let num_blocks_y = height.div_ceil(4);
 
-    blocks(data, &mut out, width as usize, height as usize, 4, 4, 16, |data, out| {
-        decode_bc1_block(&data[8..], out, (0, 0, 0, 255));
-        decode_bc3_alpha_block(data, out);
-    });
+    let decoded_rows = (0..num_blocks_y).into_par_iter().map(|block_y| {
+        let mut decoded_row = vec![0u8; (num_blocks_x as usize) << 6];
 
-    RgbaImage::from_raw(width, height, out).unwrap()
+        (0..num_blocks_x).for_each(|block_x| {
+            let data_offset = ((block_x as usize) + (block_y as usize) * (num_blocks_x as usize)) << 4;
+            decode_bc1_block(&data[(data_offset + 8)..], &Rgba([ 0, 0, 0, 255 ]), &mut decoded_row, num_blocks_x, block_x);
+            decode_bc3_alpha_block(&data[data_offset..], &mut decoded_row, num_blocks_x, block_x);
+        });
+
+        decoded_row
+    }).collect::<Vec<_>>();
+
+    decoded_rows_to_image(decoded_rows, width, height)
 }
 
 
