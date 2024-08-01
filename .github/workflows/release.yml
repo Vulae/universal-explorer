@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         os: [ windows-x86_64, linux-x86_64 ]
         include:
@@ -23,6 +24,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact_name: universal-explorer.exe
             asset_name: universal-explorer_win_x86_64.exe
+            linker_package: gcc-mingw-w64-x86-64
 
     steps:
       - name: Checkout repository
@@ -33,6 +35,10 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.target }}
+
+      - name: Install linker
+        if: ${{ matrix.linker_package }} != null
+        run: sudo apt-get install -y ${{ matrix.linker_package }}
 
       - name: Build project
         run: cargo build --release --target ${{ matrix.target }}
