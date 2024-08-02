@@ -378,8 +378,8 @@ impl Vtf {
             for _frame in 0..frames {
                 for _face in 0..faces {
                     for _slice in 0..slices {
-                        let mip_width = width >> mipmap;
-                        let mip_height = height >> mipmap;
+                        let mip_width = (width >> mipmap).max(1);
+                        let mip_height = (height >> mipmap).max(1);
                         let size = format.texture_byte_size(mip_width as u32, mip_height as u32);
                         let mut buf = vec![0u8; size as usize];
                         data.read(&mut buf)?;
