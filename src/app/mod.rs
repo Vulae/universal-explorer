@@ -1,7 +1,6 @@
 
 mod app;
 
-
 pub use app::SharedAppContext;
 pub use app::Explorer;
 pub mod explorers;
@@ -27,6 +26,14 @@ pub fn run_app(open_files: &Vec<PathBuf>) -> Result<()> {
             run_and_return: true,
             viewport: egui::ViewportBuilder::default()
                 .with_title("universal-unpacker")
+                .with_icon({
+                    let image = image::load_from_memory(include_bytes!("../../assets/icon.png"))?;
+                    egui::IconData {
+                        width: image.width(),
+                        height: image.height(),
+                        rgba: image.into_rgba8().as_raw().to_vec(),
+                    }
+                })
                 .with_active(true)
                 .with_min_inner_size([ 480.0, 320.0 ])
                 // .with_transparent(true) // TODO: Window transparency with blur.
