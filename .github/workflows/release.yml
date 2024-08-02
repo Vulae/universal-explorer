@@ -22,7 +22,7 @@ jobs:
             artifact_name: universal-explorer
             asset_name: universal-explorer_linux_x86_64
           - os: windows-x86_64
-            target: x86_64-pc-windows-msvc
+            target: x86_64-pc-windows-gnu
             artifact_name: universal-explorer.exe
             asset_name: universal-explorer_win_x86_64.exe
             linker_package: gcc-mingw-w64-x86-64
@@ -56,8 +56,5 @@ jobs:
           tag: ${{ github.ref }}
           overwrite: true
           body: "Release for ${{ matrix.os }}"
-
-
-
 
 

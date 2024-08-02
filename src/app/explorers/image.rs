@@ -26,11 +26,11 @@ impl ImageExplorer {
 
     pub fn file<F: Read + Seek>(file: F, filename: Option<String>) -> Result<ImageExplorer> {
         let image: DynamicImage = match &filename {
-            Some(filename) => image::io::Reader::with_format(
+            Some(filename) => image::ImageReader::with_format(
                 BufReader::new(file),
                 image::ImageFormat::from_path(filename)?,
             ).decode()?,
-            None => image::io::Reader::new(BufReader::new(file))
+            None => image::ImageReader::new(BufReader::new(file))
                 .with_guessed_format()?
                 .decode()?,
         };
