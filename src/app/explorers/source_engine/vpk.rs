@@ -1,19 +1,19 @@
 
 use std::{fs::File, io::{Read, Seek}, path::PathBuf};
-use crate::{app::{Explorer, SharedAppContext}, util::{source_engine::vpk::{VpkArchive, VpkArchiveFiles}, TryClone}};
+use crate::{app::{Explorer, SharedAppContext}, util::source_engine::vpk::{VpkArchive, VpkArchiveFiles}};
 use anyhow::Result;
 use uuid::Uuid;
 
 
 
-pub struct VpkExplorer<F: Read + Seek + TryClone> {
+pub struct VpkExplorer<F: Read + Seek> {
     app_context: SharedAppContext,
     name: Option<String>,
     vpk: VpkArchive<F>,
     uuid: Uuid,
 }
 
-impl<F: Read + Seek + TryClone> VpkExplorer<F> {
+impl<F: Read + Seek> VpkExplorer<F> {
     pub fn new(app_context: SharedAppContext, vpk: VpkArchive<F>, name: Option<String>) -> VpkExplorer<F> {
         VpkExplorer {
             app_context,
@@ -37,7 +37,7 @@ impl VpkExplorer<File> {
     }
 }
 
-impl<F: Read + Seek + TryClone> Explorer for VpkExplorer<F> {
+impl<F: Read + Seek> Explorer for VpkExplorer<F> {
     fn uuid(&self) -> Uuid {
         self.uuid
     }
@@ -51,7 +51,7 @@ impl<F: Read + Seek + TryClone> Explorer for VpkExplorer<F> {
             for file in self.vpk.files.iter_mut() {
                 if ui.button(file.path()).clicked() {
                     file.rewind().expect("VTF failed to reset file stream position.");
-                    self.app_context.open_file(file.try_clone().expect("Failed to clone VPK file."), Some(file.path())).expect("Failed to open VTF file");
+                    self.app_context.open_file(file.clone(), Some(file.path())).expect("Failed to open VTF file");
                 }
             }
         });

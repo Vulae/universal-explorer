@@ -1,28 +1,40 @@
 
-use std::{fs::{self, File}, io::{Read, Seek}, path::PathBuf};
+use std::{fs::{self, File}, io::{Read, Seek}, path::PathBuf, sync::{Arc, Mutex}};
 use anyhow::{anyhow, Result};
 use regex::Regex;
-use crate::util::TryClone;
 
 
 
-pub struct VpkFile<F: Read + Seek + TryClone> {
-    archive_file: F,
+pub struct VpkFile<F: Read + Seek> {
+    archive_file: Arc<Mutex<F>>,
     path: String,
     offset: u64,
     size: u64,
     preload: Vec<u8>,
+    // We cannot rely on archive_file to keep same position, as it is shared by many files.
     pointer: u64,
 }
 
-impl<F: Read + Seek + TryClone> VpkFile<F> {
+impl<F: Read + Seek> VpkFile<F> {
+    pub fn new(path: String, file: Arc<Mutex<F>>, offset: u64, size: u64, preload: Vec<u8>) -> VpkFile<F> {
+        VpkFile {
+            archive_file: file,
+            path,
+            offset,
+            size,
+            preload,
+            pointer: 0,
+        }
+    }
+
     pub fn path(&self) -> String {
         self.path.clone()
     }
 }
 
-impl<F: Read + Seek + TryClone> Seek for VpkFile<F> {
+impl<F: Read + Seek> Seek for VpkFile<F> {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        // FIXME: Error on out of bounds.
         self.pointer = match pos {
             std::io::SeekFrom::Start(pointer) => Some(pointer),
             std::io::SeekFrom::End(pointer_end) => self.size.checked_add_signed(pointer_end),
@@ -32,7 +44,7 @@ impl<F: Read + Seek + TryClone> Seek for VpkFile<F> {
     }
 }
 
-impl<F: Read + Seek + TryClone> Read for VpkFile<F> {
+impl<F: Read + Seek> Read for VpkFile<F> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         // TODO: Support preloaded data.
         if !self.preload.is_empty() {
@@ -40,32 +52,26 @@ impl<F: Read + Seek + TryClone> Read for VpkFile<F> {
         }
         let offset = self.offset + self.pointer;
         self.pointer += buf.len() as u64;
-        self.archive_file.seek(std::io::SeekFrom::Start(offset))?;
-        self.archive_file.read(buf)
+        let mut archive_file = self.archive_file.lock().unwrap();
+        archive_file.seek(std::io::SeekFrom::Start(offset))?;
+        archive_file.read(buf)
     }
 }
 
-impl<F: Read + Seek + TryClone> TryClone for VpkFile<F> {
-    fn try_clone(&self) -> Result<Self> {
-        Ok(VpkFile {
-            archive_file: self.archive_file.try_clone()?,
-            path: self.path.clone(),
-            offset: self.offset,
-            size: self.size,
-            preload: self.preload.clone(),
-            pointer: self.pointer,
-        })
+impl<F: Read + Seek> Clone for VpkFile<F> {
+    fn clone(&self) -> Self {
+        VpkFile::new(self.path.clone(), Arc::clone(&self.archive_file), self.offset, self.size, self.preload.clone())
     }
 }
 
 
 
-pub struct VpkArchiveFiles<F: Read + Seek + TryClone> {
+pub struct VpkArchiveFiles<F: Read + Seek> {
     pub dir: F,
     pub entries: Vec<F>,
 }
 
-impl<F: Read + Seek + TryClone> VpkArchiveFiles<F> {
+impl<F: Read + Seek> VpkArchiveFiles<F> {
     pub fn new(dir: F, entries: Vec<F>) -> VpkArchiveFiles<F> {
         VpkArchiveFiles { dir, entries }
     }
@@ -134,17 +140,17 @@ impl VpkArchiveFiles<File> {
 
 
 
-pub struct VpkArchive<F: Read + Seek + TryClone> {
+pub struct VpkArchive<F: Read + Seek> {
     pub files: Vec<VpkFile<F>>,
 }
 
-impl<F: Read + Seek + TryClone> VpkArchive<F> {
+impl<F: Read + Seek> VpkArchive<F> {
     pub fn new(files: Vec<VpkFile<F>>) -> VpkArchive<F> {
         VpkArchive { files }
     }
 
-    pub fn open<R: Read + Seek + TryClone>(vpk_files: VpkArchiveFiles<R>) -> Result<VpkArchive<R>> {
-        let mut reader = crate::util::reader::Reader::new_le(vpk_files.dir.try_clone()?);
+    pub fn open<R: Read + Seek>(mut vpk_files: VpkArchiveFiles<R>) -> Result<VpkArchive<R>> {
+        let mut reader = crate::util::reader::Reader::new_le(&mut vpk_files.dir);
 
         if &reader.read::<[u8; 4]>()? != b"\x34\x12\xAA\x55" {
             return Err(anyhow!("Invalid .vpk identifier"))
@@ -160,7 +166,22 @@ impl<F: Read + Seek + TryClone> VpkArchive<F> {
 
         let end_of_directory = reader.position() + (tree_size as u64);
 
-        let mut files: Vec<VpkFile<R>> = Vec::new();
+
+
+        enum ArchiveStoreEntry {
+            Dir,
+            Entry(u16),
+        }
+
+        struct ArchiveStore {
+            archive: ArchiveStoreEntry,
+            path: String,
+            offset: u32,
+            size: u32,
+            preload: Vec<u8>,
+        }
+
+        let mut stores: Vec<ArchiveStore> = Vec::new();
 
         loop {
             let ext = reader.read_string(None)?;
@@ -184,19 +205,29 @@ impl<F: Read + Seek + TryClone> VpkArchive<F> {
 
                     let filename = if path.trim().is_empty() { format!("{}.{}", name, ext) } else { format!("{}/{}.{}", path, name, ext) };
 
-                    files.push(VpkFile {
-                        archive_file: if archive_index == 0x7FFF { vpk_files.dir.try_clone()? } else { vpk_files.entries[archive_index as usize].try_clone()? },
+                    stores.push(ArchiveStore {
+                        archive: if archive_index == 0x7FFF { ArchiveStoreEntry::Dir } else { ArchiveStoreEntry::Entry(archive_index) },
                         path: filename,
-                        offset: if archive_index == 0x7FFF { (offset as u64) + end_of_directory } else { offset as u64 },
-                        size: size as u64,
+                        offset: if archive_index == 0x7FFF { offset + (end_of_directory as u32) } else { offset },
+                        size,
                         preload,
-                        pointer: 0,
                     });
                 }
             }
         }
 
-        Ok(VpkArchive::new(files))
+
+
+        let archive_dir = Arc::new(Mutex::new(vpk_files.dir));
+        let archive_entries = vpk_files.entries.into_iter().map(|f| Arc::new(Mutex::new(f))).collect::<Vec<_>>();
+
+        Ok(VpkArchive::new(stores.into_iter().map(|s| {
+            let archive = match s.archive {
+                ArchiveStoreEntry::Dir => Arc::clone(&archive_dir),
+                ArchiveStoreEntry::Entry(index) => Arc::clone(&archive_entries[index as usize]),
+            };
+            VpkFile::new(s.path, archive, s.offset as u64, s.size as u64, s.preload)
+        }).collect::<Vec<_>>()))
     }
 }
 

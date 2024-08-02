@@ -19,18 +19,6 @@ pub fn filename<P: Into<PathBuf>>(path: P) -> Option<String> {
 
 
 
-pub trait TryClone {
-    fn try_clone(&self) -> anyhow::Result<Self> where Self: Sized;
-}
-
-impl TryClone for std::fs::File {
-    fn try_clone(&self) -> anyhow::Result<Self> {
-        Ok(self.try_clone()?)
-    }
-}
-
-
-
 #[macro_export]
 macro_rules! print_perf {
     ($name:literal, $block:expr) => ({
