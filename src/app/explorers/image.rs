@@ -34,14 +34,17 @@ impl ImageExplorer {
                 .with_guessed_format()?
                 .decode()?,
         };
-        Ok(ImageExplorer::new(image, filename))
+        Ok(ImageExplorer::new(
+            image,
+            filename.map(|f| crate::util::filename(&f)).flatten()
+        ))
     }
 
     pub fn open<P: Into<PathBuf>>(path: P) -> Result<ImageExplorer> {
         let path: PathBuf = path.into();
         ImageExplorer::file(
             File::open(&path)?,
-            path.file_name().map(|s| s.to_str().map(|s| s.to_owned())).flatten(),
+            crate::util::filename(&path),
         )
     }
 }

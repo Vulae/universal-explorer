@@ -95,7 +95,7 @@ impl SharedAppContext {
 
             self.open_file(
                 File::open(&path)?,
-                path.file_name().map(|filename| filename.to_str().map(|filename| filename.to_string())).flatten(),
+                crate::util::filename(&path),
             )?;
         }
     
@@ -119,17 +119,32 @@ impl eframe::App for SharedAppContext {
             egui::SidePanel::left("tab_list").show(ui.ctx(), |ui| {
                 ui.vertical(|ui| {
                     ui.label("Tab List");
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            let selected_explorer: Option<Uuid> = self.current_explorer().map(|e| e.uuid());
+                            for explorer in self.explorers().iter_mut() {
+                                let is_selected_explorer = selected_explorer.map(|u| u == explorer.uuid()).unwrap_or(false);
 
-                    for explorer in self.explorers().iter_mut() {
-                        ui.horizontal(|ui| {
-                            if ui.button(explorer.name()).clicked() {
-                                self.select_explorer(explorer.uuid());
-                            }
-                            if ui.button("x").clicked() {
-                                self.remove_explorer(explorer.uuid())
+                                ui.horizontal(|ui| {
+                                    ui.style_mut().spacing.item_spacing = egui::Vec2::new(0.0, 0.0);
+
+                                    if ui.add(
+                                        egui::Button::new(explorer.name())
+                                            .selected(is_selected_explorer)
+                                    ).clicked() {
+                                        self.select_explorer(explorer.uuid());
+                                    }
+
+                                    if ui.add(
+                                        egui::Button::new("X")
+                                            .selected(is_selected_explorer)
+                                    ).clicked() {
+                                        self.remove_explorer(explorer.uuid())
+                                    }
+                                });
                             }
                         });
-                    }
+                    });
                 });
             });
 

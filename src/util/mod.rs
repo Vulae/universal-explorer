@@ -5,6 +5,18 @@ pub mod reader;
 pub mod texture;
 // pub mod virtual_fs;
 
+use std::path::PathBuf;
+
+
+
+pub fn filename<P: Into<PathBuf>>(path: P) -> Option<String> {
+    let path: PathBuf = path.into();
+    path
+        .file_name()
+        .map(|s| s.to_str().map(|s| s.to_owned()))
+        .flatten()
+}
+
 
 
 pub trait TryClone {

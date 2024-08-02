@@ -25,7 +25,7 @@ pub fn run_app(open_files: &Vec<PathBuf>) -> Result<()> {
         eframe::NativeOptions {
             run_and_return: true,
             viewport: egui::ViewportBuilder::default()
-                .with_title("universal-unpacker")
+                .with_title("Universal Explorer")
                 .with_icon({
                     let image = image::load_from_memory(include_bytes!("../../assets/icon.png"))?;
                     egui::IconData {

@@ -32,7 +32,7 @@ impl VpkExplorer<File> {
         Ok(VpkExplorer::new(
             app_context,
             vpk,
-            path.file_name().map(|s| s.to_str().map(|s| s.to_owned())).flatten(),
+            crate::util::filename(&path),
         ))
     }
 }

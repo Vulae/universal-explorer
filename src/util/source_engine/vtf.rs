@@ -347,7 +347,7 @@ impl Vtf {
         Ok(Vtf {
             format: highres_format,
             width: width as u32,
-            height: width as u32,
+            height: height as u32,
             thumbnail,
             mipmaps,
             frames,
