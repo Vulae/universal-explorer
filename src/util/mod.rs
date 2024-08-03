@@ -5,7 +5,7 @@ pub mod reader;
 pub mod texture;
 // pub mod virtual_fs;
 
-use std::path::PathBuf;
+use std::{io::{self, Read, Seek}, path::PathBuf, sync::{Arc, Mutex}};
 
 
 
@@ -37,3 +37,52 @@ macro_rules! print_perf {
 }
 
 
+
+pub struct InnerFile<F: Read + Seek> {
+    file: Arc<Mutex<F>>,
+    offset: u64,
+    size: u64,
+    pointer: u64,
+}
+
+impl<F: Read + Seek> InnerFile<F> {
+    pub fn new(file: Arc<Mutex<F>>, offset: u64, size: u64) -> Self {
+        Self { file, offset, size, pointer: 0 }
+    }
+}
+
+impl<F: Read + Seek> Read for InnerFile<F> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut file = self.file.lock().unwrap();
+        file.seek(io::SeekFrom::Start(self.offset + self.pointer))?;
+
+        let max_bytes = (self.size - self.pointer).min(buf.len() as u64) as usize;
+        let bytes_read = file.read(&mut buf[..max_bytes])?;
+        self.pointer += bytes_read as u64;
+
+        Ok(bytes_read)
+    }
+}
+
+impl<F: Read + Seek> Seek for InnerFile<F> {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        let new_pointer = (match pos {
+            io::SeekFrom::Start(offset) => Some(offset),
+            io::SeekFrom::End(offset) => self.size.checked_add_signed(offset),
+            io::SeekFrom::Current(offset) => self.pointer.checked_add_signed(offset),
+        }).ok_or(std::io::Error::new(std::io::ErrorKind::InvalidInput, "seek u64 overflow"))?;
+
+        if new_pointer > self.size {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "seek out of bounds"));
+        }
+
+        self.pointer = new_pointer;
+        Ok(self.pointer)
+    }
+}
+
+impl<F: Read + Seek> Clone for InnerFile<F> {
+    fn clone(&self) -> Self {
+        Self { file: self.file.clone(), offset: self.offset, size: self.size, pointer: self.pointer }
+    }
+}

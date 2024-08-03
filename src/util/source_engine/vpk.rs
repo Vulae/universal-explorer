@@ -2,28 +2,22 @@
 use std::{fs::{self, File}, io::{Read, Seek}, path::PathBuf, sync::{Arc, Mutex}};
 use anyhow::{anyhow, Result};
 use regex::Regex;
+use crate::util::InnerFile;
 
 
 
 pub struct VpkFile<F: Read + Seek> {
-    archive_file: Arc<Mutex<F>>,
+    inner: InnerFile<F>,
     path: String,
-    offset: u64,
-    size: u64,
     preload: Vec<u8>,
-    // We cannot rely on archive_file to keep same position, as it is shared by many files.
-    pointer: u64,
 }
 
 impl<F: Read + Seek> VpkFile<F> {
-    pub fn new(path: String, file: Arc<Mutex<F>>, offset: u64, size: u64, preload: Vec<u8>) -> VpkFile<F> {
-        VpkFile {
-            archive_file: file,
+    pub fn new(path: String, file: Arc<Mutex<F>>, offset: u64, size: u64, preload: Vec<u8>) -> Self {
+        Self {
+            inner: InnerFile::new(file, offset, size),
             path,
-            offset,
-            size,
             preload,
-            pointer: 0,
         }
     }
 
@@ -34,13 +28,7 @@ impl<F: Read + Seek> VpkFile<F> {
 
 impl<F: Read + Seek> Seek for VpkFile<F> {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
-        // FIXME: Error on out of bounds.
-        self.pointer = match pos {
-            std::io::SeekFrom::Start(pointer) => Some(pointer),
-            std::io::SeekFrom::End(pointer_end) => self.size.checked_add_signed(pointer_end),
-            std::io::SeekFrom::Current(offset) => self.pointer.checked_add_signed(offset),
-        }.ok_or(std::io::ErrorKind::Other)?; // FIXME: What error is this supposed to be?
-        Ok(self.pointer)
+        self.inner.seek(pos)
     }
 }
 
@@ -50,17 +38,13 @@ impl<F: Read + Seek> Read for VpkFile<F> {
         if !self.preload.is_empty() {
             panic!("VPK file with preload bytes not supported.");
         }
-        let offset = self.offset + self.pointer;
-        self.pointer += buf.len() as u64;
-        let mut archive_file = self.archive_file.lock().unwrap();
-        archive_file.seek(std::io::SeekFrom::Start(offset))?;
-        archive_file.read(buf)
+        self.inner.read(buf)
     }
 }
 
 impl<F: Read + Seek> Clone for VpkFile<F> {
     fn clone(&self) -> Self {
-        VpkFile::new(self.path.clone(), Arc::clone(&self.archive_file), self.offset, self.size, self.preload.clone())
+        Self { inner: self.inner.clone(), path: self.path.clone(), preload: self.preload.clone() }
     }
 }
 

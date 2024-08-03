@@ -10,6 +10,7 @@ A CLI may be implemented in the future to allow for automation of extracting.
 
 # [Supported Formats](#supported-formats)
 
+* Text
 * Common image formats
 * Source Engine
     * `.vpk` archive

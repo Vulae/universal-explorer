@@ -43,7 +43,8 @@ impl VtfExplorer {
         }
     }
     
-    pub fn file<F: Read + Seek>(file: F, filename: Option<String>) -> Result<VtfExplorer> {
+    pub fn file<F: Read + Seek>(mut file: F, filename: Option<String>) -> Result<VtfExplorer> {
+        file.rewind()?;
         Ok(VtfExplorer::new(
             Vtf::load(file)?,
             filename.map(|f| crate::util::filename(&f)).flatten()

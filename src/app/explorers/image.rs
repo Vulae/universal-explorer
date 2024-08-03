@@ -24,7 +24,8 @@ impl ImageExplorer {
         }
     }
 
-    pub fn file<F: Read + Seek>(file: F, filename: Option<String>) -> Result<ImageExplorer> {
+    pub fn file<F: Read + Seek>(mut file: F, filename: Option<String>) -> Result<ImageExplorer> {
+        file.rewind()?;
         let image: DynamicImage = match &filename {
             Some(filename) => image::ImageReader::with_format(
                 BufReader::new(file),
@@ -36,7 +37,7 @@ impl ImageExplorer {
         };
         Ok(ImageExplorer::new(
             image,
-            filename.map(|f| crate::util::filename(&f)).flatten()
+            filename.map(|f| crate::util::filename(&f)).flatten(),
         ))
     }
 

@@ -2,8 +2,7 @@
 use std::{cell::RefCell, fs::File, io::{Read, Seek}, path::{Path, PathBuf}, rc::Rc};
 use anyhow::{anyhow, Result};
 use uuid::Uuid;
-
-use super::explorers::{image::ImageExplorer, source_engine::{vpk::VpkExplorer, vtf::VtfExplorer}};
+use super::explorers::{image::ImageExplorer, source_engine::{vpk::VpkExplorer, vtf::VtfExplorer}, text::TextExplorer};
 
 
 
@@ -73,6 +72,10 @@ impl SharedAppContext {
             return Ok(());
         }
         if let Ok(explorer) = VtfExplorer::file(&mut file, filename.clone()) {
+            self.new_explorer(explorer);
+            return Ok(());
+        }
+        if let Ok(explorer) = TextExplorer::file(&mut file, filename.clone()) {
             self.new_explorer(explorer);
             return Ok(());
         }
