@@ -73,6 +73,19 @@ fn decode_bc1_block(data: &[u8], extra_color: &Rgba<u8>, out: &mut [u8], num_blo
     }
 }
 
+fn decode_bc2_alpha_block(data: &[u8], out: &mut [u8], num_blocks_x: u32, block_x: u32) {
+    let alphas = u64::from_le_bytes([ data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7] ]);
+    for pi in 0..16 {
+        // FIXME: The upsampling doesn't seem to be correct.
+        let alpha = (((alphas >> (pi << 2)) & 0b1111) as u8) * 17;
+
+        let x = (block_x << 2) + (pi & 0b11);
+        let y = pi >> 2;
+        let out_index = (x + y * (num_blocks_x << 2)) << 2;
+        out[out_index as usize + 3] = alpha;
+    }
+}
+
 fn decode_bc3_alpha_block(data: &[u8], out: &mut [u8], num_blocks_x: u32, block_x: u32) {
     let a0 = data[0];
     let a1 = data[1];
@@ -137,6 +150,25 @@ pub fn decode_bc1(data: &[u8], width: u32, height: u32, extra_color: Rgba<u8>) -
         (0..num_blocks_x).for_each(|block_x| {
             let data_offset = ((block_x as usize) + (block_y as usize) * (num_blocks_x as usize)) << 3;
             decode_bc1_block(&data[data_offset..], &extra_color, &mut decoded_row, num_blocks_x, block_x);
+        });
+
+        decoded_row
+    }).collect::<Vec<_>>();
+
+    decoded_rows_to_image(decoded_rows, width, height)
+}
+
+pub fn decode_bc2(data: &[u8], width: u32, height: u32) -> RgbaImage {
+    let num_blocks_x = width.div_ceil(4);
+    let num_blocks_y = height.div_ceil(4);
+
+    let decoded_rows = (0..num_blocks_y).into_par_iter().map(|block_y| {
+        let mut decoded_row = vec![0u8; (num_blocks_x as usize) << 6];
+
+        (0..num_blocks_x).for_each(|block_x| {
+            let data_offset = ((block_x as usize) + (block_y as usize) * (num_blocks_x as usize)) << 4;
+            decode_bc1_block(&data[(data_offset + 8)..], &Rgba([ 0, 0, 0, 255 ]), &mut decoded_row, num_blocks_x, block_x);
+            decode_bc2_alpha_block(&data[data_offset..], &mut decoded_row, num_blocks_x, block_x);
         });
 
         decoded_row

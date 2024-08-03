@@ -36,7 +36,7 @@ pub fn run_app(open_files: &Vec<PathBuf>) -> Result<()> {
                 })
                 .with_active(true)
                 .with_min_inner_size([ 480.0, 320.0 ])
-                // .with_transparent(true) // TODO: Window transparency with blur.
+                .with_transparent(true) // TODO: Window transparency with blur.
                 .with_maximized(true),
             ..Default::default()
         },

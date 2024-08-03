@@ -1,6 +1,6 @@
 
 use std::io::{Read, Seek};
-use image::{DynamicImage, GrayAlphaImage, GrayImage, RgbImage, RgbaImage};
+use image::{DynamicImage, GrayAlphaImage, GrayImage, ImageBuffer, LumaA, Pixel, Rgb, RgbImage, Rgba, RgbaImage};
 use anyhow::{anyhow, Result};
 use bitflags::bitflags;
 
@@ -62,7 +62,7 @@ bitflags! {
 #[repr(i32)]
 #[allow(non_camel_case_types)]
 pub enum TextureFormat {
-    NONE = -1,
+    NONE = -1, // TODO: Probably want to do something different with NONE format.
 	RGBA8888 = 0,
 	ABGR8888 = 1,
 	RGB888 = 2,
@@ -180,40 +180,148 @@ impl VtfTexture {
     pub fn to_image(&self) -> DynamicImage {
         
         // The unsupported image is just temporary for until all image formats are supported.
-        
         fn unsupported_format_image() -> DynamicImage {
             image::load_from_memory(include_bytes!("./unsupported_format.png")).unwrap()
+        }
+
+        fn swizzle_image<const S: usize, T, P, F>(data: &[u8], width: u32, height: u32, mut swizzle: F) -> ImageBuffer<P, Vec<T>>
+        where
+            T: image::Primitive,
+            P: Pixel<Subpixel = T> + 'static,
+            F: FnMut(&[u8; S]) -> P,
+        {
+            let mut image = ImageBuffer::<P, Vec<T>>::new(width, height);
+            let mut offset: usize = 0;
+            // TODO: Rayon
+            image.pixels_mut().for_each(|pixel| {
+                let color = swizzle(&data[offset..(offset + S)].try_into().unwrap());
+                *pixel = color;
+                offset += S;
+            });
+            image
+        }
+
+        // TODO: Generalize with generics
+        // TODO: Use const generics
+        #[inline]
+        fn extract(v: u16, offset: u8, length: u8) -> u8 {
+            #[inline]
+            fn expand(v: u8, source_bits: u8) -> u8 {
+                // TODO: Probably just want to hard code each source_bits possibility for best performance.
+
+                // let shift_amount = 8 - source_bits;
+                // let mut result = ((v << shift_amount) & 0xFF) as u8;
+                // for _ in 0..shift_amount {
+                //     result |= result >> source_bits;
+                // }
+                // result
+                let mut dest: u8 = 0;
+                let mut dest_bits: u8 = 8;
+                while dest_bits >= source_bits {
+                    dest <<= source_bits;
+                    dest |= v;
+                    dest_bits -= source_bits;
+                }
+                if dest_bits > 0 {
+                    let temp = v >> (source_bits - dest_bits);
+                    dest <<= dest_bits;
+                    dest |= temp;
+                }
+                dest
+            }
+
+            let mask: u16 = ((1 << length) - 1) << offset;
+            let value: u8 = ((v & mask) >> offset) as u8;
+            expand(value, length)
+        }
+
+        #[inline]
+        fn bluescreen(c: Rgb<u8>) -> Rgba<u8> {
+            if c == Rgb([ 0, 0, 255 ]) {
+                Rgba([ 0, 0, 0, 0 ])
+            } else {
+                c.to_rgba()
+            }
         }
 
         match self.format {
             TextureFormat::NONE => unsupported_format_image(),
             TextureFormat::RGBA8888 => DynamicImage::ImageRgba8(RgbaImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
-            TextureFormat::ABGR8888 => unsupported_format_image(),
+            TextureFormat::ABGR8888 => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 4]| Rgba([ c[3], c[2], c[1], c[0] ]))),
             TextureFormat::RGB888 => DynamicImage::ImageRgb8(RgbImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
-            TextureFormat::BGR888 => unsupported_format_image(),
-            TextureFormat::RGB565 => unsupported_format_image(),
+            TextureFormat::BGR888 => DynamicImage::ImageRgb8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 3]| Rgb([ c[2], c[1], c[0] ]))),
+            TextureFormat::RGB565 => DynamicImage::ImageRgb8(
+                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
+                    let v = u16::from_le_bytes(*c);
+                    Rgb([ extract(v, 0, 5), extract(v, 5, 6), extract(v, 11, 5) ])
+                })
+            ),
             TextureFormat::I8 => DynamicImage::ImageLuma8(GrayImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
             TextureFormat::IA88 => DynamicImage::ImageLumaA8(GrayAlphaImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
             TextureFormat::P8 => unsupported_format_image(), // ?????
-            TextureFormat::A8 => unsupported_format_image(),
-            TextureFormat::RGB888_BLUESCREEN => unsupported_format_image(),
-            TextureFormat::BGR888_BLUESCREEN => unsupported_format_image(),
-            TextureFormat::ARGB8888 => unsupported_format_image(),
-            TextureFormat::BGRA8888 => unsupported_format_image(),
+            // There's no such thing as ImageA8, So we just use ImageLumaA8 & set Luma to be 0.
+            TextureFormat::A8 => DynamicImage::ImageLumaA8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 1]| LumaA([ 0, c[0] ]))),
+            TextureFormat::RGB888_BLUESCREEN => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 3]| bluescreen(Rgb([ c[0], c[1], c[2] ])))),
+            TextureFormat::BGR888_BLUESCREEN => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 3]| bluescreen(Rgb([ c[2], c[1], c[0] ])))),
+            TextureFormat::ARGB8888 => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 4]| Rgba([ c[3], c[0], c[1], c[2] ]))),
+            // FIXME: This may also be an HDR texture based on texture flags.
+            TextureFormat::BGRA8888 => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 4]| Rgba([ c[2], c[1], c[0], c[3] ]))),
             TextureFormat::DXT1 => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc1(&self.data, self.width(), self.height(), image::Rgba([ 0, 0, 0, 255 ]))),
-            TextureFormat::DXT3 => unsupported_format_image(),
+            TextureFormat::DXT3 => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc2(&self.data, self.width(), self.height())),
             TextureFormat::DXT5 => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc3(&self.data, self.width(), self.height())),
-            TextureFormat::BGRX8888 => unsupported_format_image(),
-            TextureFormat::BGR565 => unsupported_format_image(),
-            TextureFormat::BGRX5551 => unsupported_format_image(),
-            TextureFormat::BGRA4444 => unsupported_format_image(),
+            TextureFormat::BGRX8888 => DynamicImage::ImageRgb8({
+                let mut malformed = false;
+                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 4]| {
+                    if !malformed && c[3] != 0 {
+                        malformed = true;
+                        println!("BGRX8888 is malformed, has alpha channel data.");
+                    }
+                    Rgb([ c[2], c[1], c[0] ])
+                })
+            }),
+            TextureFormat::BGR565 => DynamicImage::ImageRgb8(
+                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
+                    let v = u16::from_le_bytes(*c);
+                    Rgb([ extract(v, 11, 5), extract(v, 5, 6), extract(v, 0, 5) ])
+                })
+            ),
+            TextureFormat::BGRX5551 => DynamicImage::ImageRgb8({
+                let mut malformed = false;
+                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
+                    let v = u16::from_le_bytes(*c);
+                    if !malformed && extract(v, 15, 1) != 0 {
+                        malformed = true;
+                        println!("BGRX5551 is malformed, has alpha channel data.");
+                    }
+                    Rgb([ extract(v, 10, 5), extract(v, 5, 5), extract(v, 0, 5) ])
+                })
+            }),
+            TextureFormat::BGRA4444 => DynamicImage::ImageRgba8(
+                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
+                    let v = u16::from_le_bytes(*c);
+                    Rgba([ extract(v, 8, 4), extract(v, 4, 4), extract(v, 0, 4), extract(v, 12, 4) ])
+                })
+            ),
             TextureFormat::DXT1_ONEBITALPHA => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc1(&self.data, self.width(), self.height(), image::Rgba([ 0, 0, 0, 0 ]))),
-            TextureFormat::BGRA5551 => unsupported_format_image(),
-            TextureFormat::UV88 => unsupported_format_image(),
-            TextureFormat::UVWQ8888 => unsupported_format_image(),
-            TextureFormat::RGBA16161616F => unsupported_format_image(),
-            TextureFormat::RGBA16161616 => unsupported_format_image(),
-            TextureFormat::UVLX8888 => unsupported_format_image(),
+            TextureFormat::BGRA5551 => DynamicImage::ImageRgba8(
+                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
+                    let v = u16::from_le_bytes(*c);
+                    Rgba([ extract(v, 10, 5), extract(v, 5, 5), extract(v, 0, 5), extract(v, 15, 1) ])
+                })
+            ),
+            TextureFormat::UV88 => DynamicImage::ImageRgb8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| Rgb([ c[0], c[1], 0 ]))),
+            TextureFormat::UVWQ8888 =>  DynamicImage::ImageRgba8(RgbaImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
+            TextureFormat::RGBA16161616F => DynamicImage::ImageRgba16( // Is this supposed to be the same as RGBA16161616 ???
+                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 8]| {
+                    Rgba([ u16::from_le_bytes([ c[0], c[1] ]), u16::from_le_bytes([ c[2], c[3] ]), u16::from_le_bytes([ c[4], c[5] ]), u16::from_le_bytes([ c[6], c[7] ]) ])
+                })
+            ),
+            TextureFormat::RGBA16161616 => DynamicImage::ImageRgba16(
+                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 8]| {
+                    Rgba([ u16::from_le_bytes([ c[0], c[1] ]), u16::from_le_bytes([ c[2], c[3] ]), u16::from_le_bytes([ c[4], c[5] ]), u16::from_le_bytes([ c[6], c[7] ]) ])
+                })
+            ),
+            TextureFormat::UVLX8888 => DynamicImage::ImageRgba8(RgbaImage::from_raw(self.width, self.height, self.data.clone()).unwrap()), // TODO: Probably warn for malformed because X component.
         }
     }
 }
