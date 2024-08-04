@@ -1,23 +1,59 @@
 
 use std::{cell::RefCell, fs::File, io::{Read, Seek}, path::{Path, PathBuf}, rc::Rc};
 use anyhow::{anyhow, Result};
-use uuid::Uuid;
 use super::explorers::{image::ImageExplorer, source_engine::{vpk::VpkExplorer, vtf::VtfExplorer}, text::TextExplorer};
 
 
 
+struct ExplorerTab;
+
+impl egui_dock::TabViewer for ExplorerTab {
+    type Tab = SharedExplorer;
+
+    fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
+        tab.uuid().to_string().into()
+    }
+
+    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
+        tab.name().into()
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+        if let Err(err) = tab.ui(ui) {
+            println!("UI Error: {}", err);
+        }
+    }
+}
+
+
+
 pub struct AppContext {
-    pub explorers: Vec<SharedExplorer>,
-    open_explorer: Uuid,
+    dock_state: egui_dock::DockState<SharedExplorer>,
+    explorers_to_add: Vec<SharedExplorer>,
     auto_focus_new_explorers: bool,
 }
 
 impl AppContext {
-    fn new() -> AppContext {
-        AppContext {
-            explorers: Vec::new(),
-            open_explorer: Uuid::nil(),
+    fn new() -> Self {
+        Self {
+            dock_state: egui_dock::DockState::new(Vec::new()),
+            explorers_to_add: Vec::new(),
             auto_focus_new_explorers: true,
+        }
+    }
+
+    fn has_explorers(&self) -> bool {
+        self.dock_state.iter_all_tabs().count() > 0
+    }
+
+    fn new_explorer(&mut self, explorer: impl Explorer + 'static) {
+        self.explorers_to_add.push(SharedExplorer(Rc::new(RefCell::new(explorer))));
+    }
+
+    fn push_new_explorers_to_dock_state(&mut self) {
+        // TODO: Reimplement auto_focus_new_explorers
+        while let Some(explorer) = self.explorers_to_add.pop() {
+            self.dock_state.push_to_focused_leaf(explorer);
         }
     }
 }
@@ -27,45 +63,16 @@ impl AppContext {
 
 
 #[derive(Clone)]
-pub struct SharedAppContext {
-    app_context: Rc<RefCell<AppContext>>,
-}
+pub struct SharedAppContext(Rc<RefCell<AppContext>>);
 
 impl SharedAppContext {
-    pub fn new() -> SharedAppContext {
+    pub fn new() -> Self {
         let app_context = AppContext::new();
-        SharedAppContext {
-            app_context: Rc::new(RefCell::new(app_context)),
-        }
-    }
-
-    pub fn explorers(&self) -> Vec<SharedExplorer> {
-        // This sucks, please do not collect!
-        self.app_context.borrow_mut().explorers.iter().map(|v| v.clone()).collect::<Vec<_>>()
-    }
-
-    pub fn current_explorer(&self) -> Option<SharedExplorer> {
-        let open_explorer_uuid = self.app_context.borrow().open_explorer;
-        self.explorers()
-            .iter()
-            .find(|explorer| explorer.uuid() == open_explorer_uuid)
-            .map(|explorer| explorer.clone())
-    }
-
-    pub fn select_explorer(&self, uuid: Uuid) {
-        self.app_context.borrow_mut().open_explorer = uuid;
+        Self(Rc::new(RefCell::new(app_context)))
     }
 
     pub fn new_explorer(&mut self, explorer: impl Explorer + 'static) {
-        if self.app_context.borrow().auto_focus_new_explorers {
-            self.app_context.borrow_mut().open_explorer = explorer.uuid();
-        }
-        self.app_context.borrow_mut().explorers.push(SharedExplorer(Rc::new(RefCell::new(explorer))));
-    }
-
-    pub fn remove_explorer(&mut self, uuid: Uuid) {
-        // TODO: Clean up. What in the heck is this?
-        self.app_context.borrow_mut().explorers = self.explorers().into_iter().filter(|e| e.uuid() != uuid).collect::<Vec<_>>();
+        self.0.borrow_mut().new_explorer(explorer);
     }
 
 
@@ -121,7 +128,7 @@ impl eframe::App for SharedAppContext {
             dark_light::Mode::Default => catppuccin_egui::MOCHA,
         });
 
-        self.app_context.borrow_mut().auto_focus_new_explorers = !ctx.input(|i| i.modifiers.shift);
+        self.0.borrow_mut().auto_focus_new_explorers = !ctx.input(|i| i.modifiers.shift);
 
         let files = ctx.input(|i| i.raw.dropped_files.clone());
         if !files.is_empty() {
@@ -131,56 +138,49 @@ impl eframe::App for SharedAppContext {
                 }
             }
         }
+        
+        self.0.borrow_mut().push_new_explorers_to_dock_state();
 
-        egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
+        if self.0.borrow_mut().has_explorers() {
 
-            egui::SidePanel::left("tab_list").show(ui.ctx(), |ui| {
-                ui.vertical(|ui| {
-                    ui.label("Tab List");
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.vertical(|ui| {
-                            let selected_explorer: Option<Uuid> = self.current_explorer().map(|e| e.uuid());
-                            for explorer in self.explorers().iter_mut() {
-                                let is_selected_explorer = selected_explorer.map(|u| u == explorer.uuid()).unwrap_or(false);
-
-                                ui.horizontal(|ui| {
-                                    ui.style_mut().spacing.item_spacing = egui::Vec2::new(0.0, 0.0);
-
-                                    if ui.add(
-                                        egui::Button::new(explorer.name())
-                                            .selected(is_selected_explorer)
-                                    ).clicked() {
-                                        self.select_explorer(explorer.uuid());
-                                    }
-
-                                    if ui.add(
-                                        egui::Button::new("X")
-                                            .selected(is_selected_explorer)
-                                    ).clicked() {
-                                        self.remove_explorer(explorer.uuid())
-                                    }
-                                });
-                            }
-                        });
-                    });
+            // TODO: Probably want to refactor this thing.
+            // Having to clone the dock state, then set it to avoid BorrowMutError is just bad.
+            let mut dock_state = self.0.borrow_mut().dock_state.clone();
+    
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::central_panel(&ctx.style())
+                        .multiply_with_opacity(0.5)
+                )
+                .show(ctx, |ui| {
+                    egui_dock::DockArea::new(&mut dock_state)
+                        .style(egui_dock::Style::from_egui(ui.style().as_ref()))
+                        .show_inside(ui, &mut ExplorerTab);
                 });
-            });
+    
+            self.0.borrow_mut().dock_state = dock_state;
+
+        } else {
 
             egui::CentralPanel::default()
-                .frame(egui::Frame::central_panel(ui.style()).multiply_with_opacity(0.5))
-                .show(ui.ctx(), |ui| {
-                    egui::ScrollArea::both()
-                        .auto_shrink([ false, false ])
-                        .show(ui, |ui| {
-                            if let Some(mut explorer) = self.current_explorer() {
-                                if let Err(err) = explorer.update(ui) {
-                                    println!("{}", err);
-                                }
-                            }
-                        });
+                .frame(
+                    egui::Frame::central_panel(&ctx.style())
+                        .multiply_with_opacity(0.5)
+                        .inner_margin(96.0)
+                )
+                .show(ctx, |ui| {
+                    ui.centered_and_justified(|ui| {
+                        // FIXME: Text spacing when wrapping.
+                        ui.add(egui::Label::new(
+                            egui::RichText::new("Drag & drop files to view")
+                                .text_style(egui::TextStyle::Heading)
+                                .size(64.0)
+                                .strong()
+                        ));
+                    });
                 });
-
-        });
+            
+        }
     }
 }
 
@@ -189,7 +189,7 @@ impl eframe::App for SharedAppContext {
 pub trait Explorer {
     fn uuid(&self) -> uuid::Uuid;
     fn name(&mut self) -> String { "Unnamed Tab".to_owned() }
-    fn update(&mut self, ui: &mut egui::Ui) -> Result<()>;
+    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()>;
 }
 
 
@@ -200,7 +200,7 @@ pub struct SharedExplorer(Rc<RefCell<dyn Explorer>>);
 impl Explorer for SharedExplorer {
     fn uuid(&self) -> uuid::Uuid { self.0.borrow().uuid() }
     fn name(&mut self) -> String { self.0.borrow_mut().name() }
-    fn update(&mut self, ui: &mut egui::Ui) -> Result<()> { self.0.borrow_mut().update(ui) }
+    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> { self.0.borrow_mut().ui(ui) }
 }
 
 

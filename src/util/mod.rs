@@ -3,6 +3,7 @@ pub mod image;
 pub mod source_engine;
 pub mod reader;
 pub mod texture;
+pub mod egui;
 // pub mod virtual_fs;
 
 use std::{io::{self, Read, Seek}, path::PathBuf, sync::{Arc, Mutex}};

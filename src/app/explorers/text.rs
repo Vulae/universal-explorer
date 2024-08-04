@@ -64,7 +64,7 @@ impl Explorer for TextExplorer {
         self.name.clone().unwrap_or("Text".to_owned())
     }
 
-    fn update(&mut self, ui: &mut egui::Ui) -> Result<()> {
+    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
         // TODO: Don't use egui::TextEdit, this should not be editable.
         ui.add(
             egui::TextEdit::multiline(&mut self.text)

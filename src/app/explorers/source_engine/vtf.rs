@@ -69,89 +69,88 @@ impl Explorer for VtfExplorer {
         self.name.clone().unwrap_or("VTF Texture".to_owned())
     }
 
-    fn update(&mut self, ui: &mut egui::Ui) -> Result<()> {
+    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
 
-        egui::SidePanel::right("vtf_information").show(ui.ctx(), |ui| {
+        crate::util::egui::splitter::Splitter::horizontal(self.uuid).min_size(240.0).show(ui, |ui_a, ui_b| {
 
-            ui.label("VTF Information");
-            ui.label(format!("Format: {:?}", self.vtf.format()));
-            ui.label(format!("Size: {}x{}", self.vtf.width(), self.vtf.height()));
-
-            if self.vtf.total_num_textures() > 1 {
-                ui.add_space(32.0);
-            }
-
-            ui.horizontal(|ui| {
-                if self.vtf.mipmaps() > 1 {
-                    ui.menu_button(format!("Mipmap {}", self.mipmap), |ui| {
-                        for mipmap in 0..self.vtf.mipmaps() {
-                            if ui.button(format!("Mipmap {}", mipmap)).clicked() {
-                                self.mipmap = mipmap;
-                            }
-                        }
-                    });
+            ui_a.vertical(|ui| {
+                ui.label("VTF Information");
+                ui.label(format!("Format: {:?}", self.vtf.format()));
+                ui.label(format!("Size: {}x{}", self.vtf.width(), self.vtf.height()));
+    
+                if self.vtf.total_num_textures() > 1 {
+                    ui.add_space(32.0);
                 }
-                if self.vtf.faces() > 1 {
-                    ui.menu_button(format!("Face {}", self.face), |ui| {
-                        for face in 0..self.vtf.faces() {
-                            if ui.button(format!("Face {}", face)).clicked() {
-                                self.face = face;
-                            }
-                        }
-                    });
-                }
-                if self.vtf.slices() > 1 {
-                    ui.menu_button(format!("Slice {}", self.slice), |ui| {
-                        for slice in 0..self.vtf.slices() {
-                            if ui.button(format!("Slice {}", slice)).clicked() {
-                                self.slice = slice;
-                            }
-                        }
-                    });
-                }
-            });
-
-            if self.vtf.frames() > 1 {
-                ui.add(egui::Slider::new(&mut self.frame, 0..=(self.vtf.frames() - 1)).text("Frame"));
-            }
-
-            if let Some(thumbnail) = self.vtf.thumbnail() {
-                let thumbnail_source = self.thumbnail.get_or_insert_with(|| {
-                    crate::util::image::image_egui_handle(&thumbnail.to_image(), ui.ctx())
-                });
-
-                ui.add_space(32.0);
+    
                 ui.horizontal(|ui| {
-                    ui.image(egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(thumbnail_source)));
-                    ui.label("Thumbnail");
-                });
-                ui.label(format!("Format: {:?}", thumbnail.format()));
-                ui.label(format!("Size: {}x{}", thumbnail.width(), thumbnail.height()));
-            }
-        });
-
-        egui::CentralPanel::default()
-            .frame(egui::Frame::central_panel(ui.style()).multiply_with_opacity(0.0))
-            .show(ui.ctx(), |ui| {
-                if let Some(texture_handle_index) = self.vtf.texture_index(self.mipmap, self.frame, self.face, self.slice) {
-                    if let Some(texture) = self.vtf.texture(self.mipmap, self.frame, self.face, self.slice) {
-                        let texture_handle = self.textures[texture_handle_index].get_or_insert_with(|| {
-                            crate::util::image::image_egui_handle(&texture.to_image(), ui.ctx())
-                        });
-                        ui.add_sized(
-                            ui.available_size(),
-                            egui::Image::new(egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&texture_handle))).shrink_to_fit(),
-                        ).context_menu(|ui| {
-                            if ui.button("Save Texture").clicked() {
-                                crate::util::image::save_image(
-                                    &texture.to_image(),
-                                    self.name.clone().map(|filename| filename.trim_end_matches(".vtf").to_owned()),
-                                ).expect("Failed to save VTF image");
+                    if self.vtf.mipmaps() > 1 {
+                        ui.menu_button(format!("Mipmap {}", self.mipmap), |ui| {
+                            for mipmap in 0..self.vtf.mipmaps() {
+                                if ui.button(format!("Mipmap {}", mipmap)).clicked() {
+                                    self.mipmap = mipmap;
+                                }
                             }
                         });
                     }
+                    if self.vtf.faces() > 1 {
+                        ui.menu_button(format!("Face {}", self.face), |ui| {
+                            for face in 0..self.vtf.faces() {
+                                if ui.button(format!("Face {}", face)).clicked() {
+                                    self.face = face;
+                                }
+                            }
+                        });
+                    }
+                    if self.vtf.slices() > 1 {
+                        ui.menu_button(format!("Slice {}", self.slice), |ui| {
+                            for slice in 0..self.vtf.slices() {
+                                if ui.button(format!("Slice {}", slice)).clicked() {
+                                    self.slice = slice;
+                                }
+                            }
+                        });
+                    }
+                });
+    
+                if self.vtf.frames() > 1 {
+                    ui.add(egui::Slider::new(&mut self.frame, 0..=(self.vtf.frames() - 1)).text("Frame"));
+                }
+    
+                if let Some(thumbnail) = self.vtf.thumbnail() {
+                    let thumbnail_source = self.thumbnail.get_or_insert_with(|| {
+                        crate::util::image::image_egui_handle(&thumbnail.to_image(), ui.ctx())
+                    });
+    
+                    ui.add_space(32.0);
+                    ui.horizontal(|ui| {
+                        ui.image(egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(thumbnail_source)));
+                        ui.label("Thumbnail");
+                    });
+                    ui.label(format!("Format: {:?}", thumbnail.format()));
+                    ui.label(format!("Size: {}x{}", thumbnail.width(), thumbnail.height()));
                 }
             });
+
+            if let Some(texture_handle_index) = self.vtf.texture_index(self.mipmap, self.frame, self.face, self.slice) {
+                if let Some(texture) = self.vtf.texture(self.mipmap, self.frame, self.face, self.slice) {
+                    let texture_handle = self.textures[texture_handle_index].get_or_insert_with(|| {
+                        crate::util::image::image_egui_handle(&texture.to_image(), ui_b.ctx())
+                    });
+                    ui_b.add_sized(
+                        ui_b.available_size(),
+                        egui::Image::new(egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&texture_handle))).shrink_to_fit(),
+                    ).context_menu(|ui| {
+                        if ui.button("Save Texture").clicked() {
+                            crate::util::image::save_image(
+                                &texture.to_image(),
+                                self.name.clone().map(|filename| filename.trim_end_matches(".vtf").to_owned()),
+                            ).expect("Failed to save VTF image");
+                        }
+                    });
+                }
+            }
+
+        });
 
         Ok(())
     }

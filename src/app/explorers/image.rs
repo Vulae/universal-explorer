@@ -59,7 +59,7 @@ impl Explorer for ImageExplorer {
         self.name.clone().unwrap_or("Image".to_owned())
     }
 
-    fn update(&mut self, ui: &mut egui::Ui) -> Result<()> {
+    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
         let texture = self.texture.get_or_insert_with(|| {
             crate::util::image::image_egui_handle(&self.image, ui.ctx())
         });

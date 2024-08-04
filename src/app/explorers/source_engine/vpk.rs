@@ -103,7 +103,7 @@ impl<F: Read + Seek> Explorer for VpkExplorer<F> {
         self.name.clone().unwrap_or("VPK Archive".to_owned())
     }
 
-    fn update(&mut self, ui: &mut egui::Ui) -> Result<()> {
+    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
         VpkExplorer::update_node(&mut self.app_context.clone(), ui, &mut self.node);
         Ok(())
     }
