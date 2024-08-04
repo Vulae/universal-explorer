@@ -9,6 +9,7 @@ use super::explorers::{image::ImageExplorer, source_engine::{vpk::VpkExplorer, v
 pub struct AppContext {
     pub explorers: Vec<SharedExplorer>,
     open_explorer: Uuid,
+    auto_focus_new_explorers: bool,
 }
 
 impl AppContext {
@@ -16,6 +17,7 @@ impl AppContext {
         AppContext {
             explorers: Vec::new(),
             open_explorer: Uuid::nil(),
+            auto_focus_new_explorers: true,
         }
     }
 }
@@ -55,6 +57,9 @@ impl SharedAppContext {
     }
 
     pub fn new_explorer(&mut self, explorer: impl Explorer + 'static) {
+        if self.app_context.borrow().auto_focus_new_explorers {
+            self.app_context.borrow_mut().open_explorer = explorer.uuid();
+        }
         self.app_context.borrow_mut().explorers.push(SharedExplorer(Rc::new(RefCell::new(explorer))));
     }
 
@@ -108,6 +113,8 @@ impl SharedAppContext {
 
 impl eframe::App for SharedAppContext {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.app_context.borrow_mut().auto_focus_new_explorers = !ctx.input(|i| i.modifiers.shift);
+
         let files = ctx.input(|i| i.raw.dropped_files.clone());
         if !files.is_empty() {
             for file in files {
