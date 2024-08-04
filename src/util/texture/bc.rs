@@ -107,7 +107,7 @@ fn decode_bc3_alpha_block(data: &[u8], out: &mut [u8], num_blocks_x: u32, block_
         palette[7] = 255;
     }
 
-    let indices: u64 = u64::from_le_bytes([ 0, 0, data[2], data[3], data[4], data[5], data[6], data[7] ]);
+    let indices: u64 = u64::from_le_bytes([ data[2], data[3], data[4], data[5], data[6], data[7], 0, 0 ]);
     for pi in 0..16 {
         let index = (indices >> (pi * 3)) & 0b111;
         let alpha = palette[index as usize];
