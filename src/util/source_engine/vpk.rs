@@ -56,13 +56,13 @@ pub struct VpkArchiveFiles<F: Read + Seek> {
 }
 
 impl<F: Read + Seek> VpkArchiveFiles<F> {
-    pub fn new(dir: F, entries: Vec<F>) -> VpkArchiveFiles<F> {
-        VpkArchiveFiles { dir, entries }
+    pub fn new(dir: F, entries: Vec<F>) -> Self {
+        Self { dir, entries }
     }
 }
 
 impl VpkArchiveFiles<File> {
-    pub fn locate<P: Into<PathBuf>>(path: P) -> Result<VpkArchiveFiles<File>> {
+    pub fn locate<P: Into<PathBuf>>(path: P) -> Result<(String, Self)> {
         // TODO: Clean up!
         let path: PathBuf = path.into();
         if !path.is_file() || !path.extension().map(|p| p == "vpk").unwrap_or(false) {
@@ -109,12 +109,12 @@ impl VpkArchiveFiles<File> {
             entries.sort();
 
             if let Some(dir) = dir {
-                let open_dir = fs::File::open(dir)?;
+                let open_dir = fs::File::open(&dir)?;
                 let mut open_entries = Vec::new();
                 for entry in entries {
                     open_entries.push(fs::File::open(entry)?);
                 }
-                return Ok(VpkArchiveFiles::new(open_dir, open_entries));
+                return Ok((dir.to_string_lossy().to_string(), Self::new(open_dir, open_entries)));
             }
         }
 
