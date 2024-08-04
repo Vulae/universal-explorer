@@ -113,6 +113,14 @@ impl SharedAppContext {
 
 impl eframe::App for SharedAppContext {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        
+        // TODO: Add config.toml with theme selection. (& with custom theme with catppuccin_egui::Theme)
+        catppuccin_egui::set_theme(ctx, match dark_light::detect() {
+            dark_light::Mode::Dark => catppuccin_egui::MOCHA,
+            dark_light::Mode::Light => catppuccin_egui::LATTE,
+            dark_light::Mode::Default => catppuccin_egui::MOCHA,
+        });
+
         self.app_context.borrow_mut().auto_focus_new_explorers = !ctx.input(|i| i.modifiers.shift);
 
         let files = ctx.input(|i| i.raw.dropped_files.clone());
