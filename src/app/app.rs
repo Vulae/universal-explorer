@@ -121,6 +121,8 @@ impl SharedAppContext {
 impl eframe::App for SharedAppContext {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         
+        egui_extras::install_image_loaders(ctx);
+        
         // TODO: Add config.toml with theme selection. (& with custom theme with catppuccin_egui::Theme)
         catppuccin_egui::set_theme(ctx, match dark_light::detect() {
             dark_light::Mode::Dark => catppuccin_egui::MOCHA,
