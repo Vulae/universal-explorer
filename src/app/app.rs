@@ -27,6 +27,7 @@ impl egui_dock::TabViewer for ExplorerTab {
 
 
 
+// TODO: Add cache for old deleted explorers, to add undo delete functionality.
 pub struct AppContext {
     dock_state: egui_dock::DockState<SharedExplorer>,
     explorers_to_add: Vec<SharedExplorer>,
@@ -138,11 +139,47 @@ impl eframe::App for SharedAppContext {
         if !files.is_empty() {
             for file in files {
                 if let Some(path) = file.path {
-                    self.open(path).expect("Failed to open file.");
+                    self.open(path).expect("Failed to open file");
                 }
             }
         }
 
+        self.ui_decorations(ctx);
+        self.ui_main(ctx);
+
+    }
+}
+
+impl SharedAppContext {
+    fn ui_openable_asset(&mut self, ui: &mut egui::Ui, name: &str, bytes: &[u8]) {
+        if ui.button(name).clicked() {
+            self.open_file(std::io::Cursor::new(bytes), Some(name.to_owned())).expect("Failed to open file");
+        }
+    }
+
+    fn ui_openable_asset_image(&mut self, ui: &mut egui::Ui, name: &str, image: egui::ImageSource) {
+        let bytes = match image {
+            egui::ImageSource::Bytes { uri: _, bytes } => bytes,
+            _ => unreachable!("image should always be egui::ImageSource::Bytes"),
+        };
+        self.ui_openable_asset(ui, name, bytes.as_ref());
+    }
+
+    fn ui_openable_builtin_filetree(&mut self, ui: &mut egui::Ui) {
+        ui.menu_button("Built-In", |ui| {
+            self.ui_openable_asset(ui, "README.md", crate::app::assets::README);
+            self.ui_openable_asset(ui, "LICENSE", crate::app::assets::LICENSE);
+            self.ui_openable_asset_image(ui, "icon.png", crate::app::assets::UNIVERSAL_EXPLORER_ICON);
+            ui.menu_button("Lucide", |ui| {
+                self.ui_openable_asset(ui, "LICENSE", crate::app::assets::LUCIDE_LICENSE);
+                self.ui_openable_asset_image(ui, "file.svg", crate::app::assets::LUCIDE_FILE);
+                self.ui_openable_asset_image(ui, "folder.svg", crate::app::assets::LUCIDE_FOLDER);
+                self.ui_openable_asset_image(ui, "folder-open.svg", crate::app::assets::LUCIDE_FOLDER_OPEN);
+            });
+        });
+    }
+
+    fn ui_decorations(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("application_decorations")
             .frame(
                 egui::Frame::side_top_panel(&ctx.style())
@@ -165,6 +202,8 @@ impl eframe::App for SharedAppContext {
                             ui.selectable_value(&mut self.0.borrow_mut().theme, catppuccin_egui::MOCHA, "Mocha");
                         });
                     });
+
+                    self.ui_openable_builtin_filetree(ui);
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // FIXME: Wrong ordering.
@@ -194,7 +233,9 @@ impl eframe::App for SharedAppContext {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
                 }
             });
+    }
 
+    fn ui_main(&mut self, ctx: &egui::Context) {
         self.0.borrow_mut().push_new_explorers_to_dock_state();
 
         if self.0.borrow_mut().has_explorers() {

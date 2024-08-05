@@ -45,7 +45,6 @@ jobs:
       - name: Build project
         run: cargo build --release --target ${{ matrix.target }}
 
-      # TODO: Instead upload an archive with program, README.md, LICENSE, & assets/lucide/LICENSE
       - name: Upload binary to release
         uses: svenstaro/upload-release-action@v2
         with:
