@@ -133,10 +133,10 @@ impl<F: Read + Seek> VpkExplorer<F> {
                 if ui.add(
                     egui::Button::image_and_text(
                         if !*expanded {
-                            egui::Image::new(egui::include_image!("../../../../assets/lucide/folder.svg"))
+                            egui::Image::new(crate::app::assets::LUCIDE_FOLDER)
                                 .tint(ui.style().visuals.text_color())
                         } else {
-                            egui::Image::new(egui::include_image!("../../../../assets/lucide/folder-open.svg"))
+                            egui::Image::new(crate::app::assets::LUCIDE_FOLDER_OPEN)
                                 .tint(ui.style().visuals.text_color())
                         },
                         &*name,
@@ -158,7 +158,7 @@ impl<F: Read + Seek> VpkExplorer<F> {
             FileTreeNode::File(name, file) => {
                 if ui.add(
                     egui::Button::image_and_text(
-                        egui::Image::new(egui::include_image!("../../../../assets/lucide/file.svg"))
+                        egui::Image::new(crate::app::assets::LUCIDE_FILE)
                             .tint(ui.style().visuals.text_color()),
                         &*name,
                     )

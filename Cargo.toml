@@ -13,7 +13,7 @@ dark-light = "1.1.1"
 eframe = "0.28.1"
 egui = "0.28.1"
 egui_dock = "0.13.0"
-egui_extras = { version = "0.28.1", features = ["svg"] }
+egui_extras = { version = "0.28.1", features = ["svg", "image"] }
 env_logger = { version = "0.11.5", features = ["auto-color", "humantime"] }
 image = "0.25.2"
 rayon = "1.10.0"

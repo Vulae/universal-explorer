@@ -31,6 +31,7 @@ pub struct AppContext {
     dock_state: egui_dock::DockState<SharedExplorer>,
     explorers_to_add: Vec<SharedExplorer>,
     auto_focus_new_explorers: bool,
+    theme: catppuccin_egui::Theme,
 }
 
 impl AppContext {
@@ -39,6 +40,11 @@ impl AppContext {
             dock_state: egui_dock::DockState::new(Vec::new()),
             explorers_to_add: Vec::new(),
             auto_focus_new_explorers: true,
+            theme: match dark_light::detect() {
+                dark_light::Mode::Dark => catppuccin_egui::MOCHA,
+                dark_light::Mode::Light => catppuccin_egui::LATTE,
+                dark_light::Mode::Default => catppuccin_egui::MOCHA,
+            },
         }
     }
 
@@ -120,15 +126,11 @@ impl SharedAppContext {
 
 impl eframe::App for SharedAppContext {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        
+
         egui_extras::install_image_loaders(ctx);
-        
+
         // TODO: Add config.toml with theme selection. (& with custom theme with catppuccin_egui::Theme)
-        catppuccin_egui::set_theme(ctx, match dark_light::detect() {
-            dark_light::Mode::Dark => catppuccin_egui::MOCHA,
-            dark_light::Mode::Light => catppuccin_egui::LATTE,
-            dark_light::Mode::Default => catppuccin_egui::MOCHA,
-        });
+        catppuccin_egui::set_theme(ctx, self.0.borrow().theme);
 
         self.0.borrow_mut().auto_focus_new_explorers = !ctx.input(|i| i.modifiers.shift);
 
@@ -140,7 +142,59 @@ impl eframe::App for SharedAppContext {
                 }
             }
         }
-        
+
+        egui::TopBottomPanel::top("application_decorations")
+            .frame(
+                egui::Frame::side_top_panel(&ctx.style())
+                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+            )
+            .show(ctx, |ui| {
+                let interaction = ui.interact(ui.max_rect(), "application_decorations_interaction".into(), egui::Sense::click_and_drag());
+
+                egui::menu::bar(ui, |ui| {
+                    ui.image(crate::app::assets::UNIVERSAL_EXPLORER_ICON);
+                    ui.hyperlink_to("universal-explorer", "https://github.com/Vulae/universal-explorer");
+
+                    ui.add_space(16.0);
+                    
+                    ui.menu_button("Settings", |ui| {
+                        ui.menu_button("Theme", |ui| {
+                            ui.selectable_value(&mut self.0.borrow_mut().theme, catppuccin_egui::LATTE, "Latte");
+                            ui.selectable_value(&mut self.0.borrow_mut().theme, catppuccin_egui::FRAPPE, "Frappé");
+                            ui.selectable_value(&mut self.0.borrow_mut().theme, catppuccin_egui::MACCHIATO, "Macchiato");
+                            ui.selectable_value(&mut self.0.borrow_mut().theme, catppuccin_egui::MOCHA, "Mocha");
+                        });
+                    });
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // FIXME: Wrong ordering.
+
+                        // TODO: Red background on hover
+                        if ui.button("🗙").clicked() {
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+
+                        let is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                        // if ui.button(if is_maximized { "🗗" } else { "🗖" }).clicked() {
+                        if ui.button("🗖").clicked() {
+                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                        }
+
+                        if ui.button("🗕").clicked() {
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                        }
+                    });
+                });
+
+                if interaction.double_clicked() {
+                    let is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                }
+                if interaction.drag_started_by(egui::PointerButton::Primary) {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                }
+            });
+
         self.0.borrow_mut().push_new_explorers_to_dock_state();
 
         if self.0.borrow_mut().has_explorers() {

@@ -1374,6 +1374,7 @@ dependencies = [
  "ahash 0.8.11",
  "egui",
  "enum-map",
+ "image",
  "log",
  "mime_guess2",
  "resvg",
