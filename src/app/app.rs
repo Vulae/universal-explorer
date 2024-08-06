@@ -33,6 +33,7 @@ pub struct AppContext {
     explorers_to_add: Vec<SharedExplorer>,
     auto_focus_new_explorers: bool,
     theme: catppuccin_egui::Theme,
+    last_frame_time: std::time::Duration,
 }
 
 impl AppContext {
@@ -46,6 +47,7 @@ impl AppContext {
                 dark_light::Mode::Light => catppuccin_egui::LATTE,
                 dark_light::Mode::Default => catppuccin_egui::MOCHA,
             },
+            last_frame_time: std::time::Duration::ZERO,
         }
     }
 
@@ -128,6 +130,8 @@ impl SharedAppContext {
 impl eframe::App for SharedAppContext {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
+        let frame_start = std::time::Instant::now();
+
         egui_extras::install_image_loaders(ctx);
 
         // TODO: Add config.toml with theme selection. (& with custom theme with catppuccin_egui::Theme)
@@ -147,6 +151,7 @@ impl eframe::App for SharedAppContext {
         self.ui_decorations(ctx);
         self.ui_main(ctx);
 
+        self.0.borrow_mut().last_frame_time = frame_start.elapsed();
     }
 }
 
@@ -204,6 +209,8 @@ impl SharedAppContext {
                     });
 
                     self.ui_openable_builtin_filetree(ui);
+
+                    ui.label(format!("{:?}", self.0.borrow().last_frame_time));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // FIXME: Wrong ordering.
