@@ -96,9 +96,12 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> Explorer for VirtualFsExplorer<F, I> 
 
         crate::util::egui::splitter::Splitter::horizontal(self.uuid).min_size(240.0).show(ui, |ui_a, ui_b| {
             
-            // TODO: Implement a Windows-like file explorer alongside this one.
-            let mut root = self.fs.root().unwrap().as_entry();
-            self.update_node(ui_a, &mut root).unwrap();
+            // FIXME: Scrollbar isn't fully at right side.
+            egui::ScrollArea::vertical().show(ui_a, |ui| {
+                // TODO: Implement a Windows-like file explorer alongside this one.
+                let mut root = self.fs.root().unwrap().as_entry();
+                self.update_node(ui, &mut root).unwrap();
+            });
 
             ui_b.vertical(|ui| {
                 if self.options.calculate_size {
