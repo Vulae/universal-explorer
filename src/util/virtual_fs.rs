@@ -19,10 +19,20 @@ pub trait VirtualFsInner<F: Read + Seek> {
 
 
 
+
+
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct FullPath(String);
 
 impl FullPath {
+    pub fn fix(self) -> Self {
+        let string = self.0;
+        let string = string.trim_start_matches('/');
+        let string = string.trim_start_matches('\\');
+        let string = string.replace('\\', "/");
+        Self(string)
+    }
+
     pub fn string(&self) -> String {
         self.0.clone()
     }
@@ -32,7 +42,7 @@ impl FullPath {
     }
 
     pub fn new<S: Into<String>>(s: S) -> Self {
-        Self(s.into())
+        Self(s.into()).fix()
     }
 
     pub fn push<S: Into<String>>(&mut self, component: S) {
@@ -85,67 +95,195 @@ impl<'a> Into<&'a str> for &'a FullPath {
 
 
 
+
+
+pub struct VirtualFsFile<F: Read + Seek, I: VirtualFsInner<F>> {
+    fs: VirtualFs<F, I>,
+    path: FullPath,
+    file: F,
+}
+
+impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsFile<F, I> {
+    pub fn new(fs: VirtualFs<F, I>, path: FullPath, file: F) -> Self { Self { fs, path, file } }
+    pub fn as_entry(self) -> VirtualFsEntry<F, I> { VirtualFsEntry::File(self) }
+    pub fn path(&self) -> &FullPath { &self.path }
+    pub fn fs(&self) -> &VirtualFs<F, I> { &self.fs }
+    pub fn fs_mut(&mut self) -> &mut VirtualFs<F, I> { &mut self.fs }
+    pub fn size(&mut self) -> Result<u64> {
+        let pos = self.stream_position()?;
+        let size = self.seek(std::io::SeekFrom::End(0))?;
+        self.seek(std::io::SeekFrom::Start(pos))?;
+        Ok(size)
+    }
+    pub fn save<P: AsRef<std::path::Path>>(&mut self, real_path: P) -> Result<()> {
+        if let Some(parent) = real_path.as_ref().parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let mut file = std::fs::File::create(real_path)?;
+        self.rewind()?;
+        std::io::copy(self, &mut file)?;
+
+        // println!("Save {} to {:?}", self.path(), real_path.as_ref());
+
+        Ok(())
+    }
+}
+
+impl<F: Read + Seek, I: VirtualFsInner<F>> Read for VirtualFsFile<F, I> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.file.read(buf)
+    }
+}
+
+impl<F: Read + Seek, I: VirtualFsInner<F>> Seek for VirtualFsFile<F, I> {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.file.seek(pos)
+    }
+}
+
+impl<F: Read + Seek + Clone, I: VirtualFsInner<F>> Clone for VirtualFsFile<F, I> {
+    fn clone(&self) -> Self {
+        Self { fs: self.fs.clone(), path: self.path.clone(), file: self.file.clone() }
+    }
+}
+
+
+
+pub struct VirtualFsDirectory<F: Read + Seek, I: VirtualFsInner<F>> {
+    fs: VirtualFs<F, I>,
+    path: FullPath,
+    entries: Vec<FullPath>,
+}
+
+impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsDirectory<F, I> {
+    pub fn new(fs: VirtualFs<F, I>, path: FullPath, entries: Vec<FullPath>) -> Self { Self { fs, path, entries } }
+    pub fn as_entry(self) -> VirtualFsEntry<F, I> { VirtualFsEntry::Directory(self) }
+    pub fn path(&self) -> &FullPath { &self.path }
+    pub fn fs(&self) -> &VirtualFs<F, I> { &self.fs }
+    pub fn fs_mut(&mut self) -> &mut VirtualFs<F, I> { &mut self.fs }
+    pub fn size(&mut self) -> Result<u64> {
+        let mut total = 0;
+        for entry in self.entries() {
+            let mut entry = entry?;
+            total += entry.size()?;
+        }
+        Ok(total)
+    }
+    pub fn save<P: AsRef<std::path::Path>>(&mut self, real_path: P) -> Result<()> {
+        for entry in self.entries_recursive() {
+            if let Some(mut file) = entry?.as_file() {
+                let mut file_path = real_path.as_ref().to_path_buf();
+                file_path.push(file.path().str());
+                file.save(file_path)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn entries_paths(&self) -> impl Iterator<Item = &FullPath> { self.entries.iter() }
+
+    pub fn entries(&mut self) -> impl Iterator<Item = Result<VirtualFsEntry<F, I>>> + '_ {
+        let mut fs = self.fs().clone();
+        self.entries_paths().map(move |p| fs.read(p.clone()))
+    }
+    pub fn entries_recursive(&mut self) -> Box<impl Iterator<Item = Result<VirtualFsEntry<F, I>>> + '_> {
+        let fs = self.fs().clone();
+        let entries = self.entries.clone();
+
+        Box::new(std::iter::once(Ok(VirtualFsEntry::Directory(self.clone())))
+            .chain(entries.into_iter().flat_map(move |path| {
+                let mut fs = fs.clone();
+                match fs.read(path.clone()) {
+                    Ok(VirtualFsEntry::File(file)) => {
+                        Box::new(std::iter::once(Ok(VirtualFsEntry::File(file)))) as Box<dyn Iterator<Item = Result<VirtualFsEntry<F, I>>>>
+                    },
+                    Ok(VirtualFsEntry::Directory(mut directory)) => {
+                        // FIXME: I'm too dumb to figure out lifetimes.
+                        // Should not need to collect then back into iter.
+                        Box::new(directory.entries_recursive().collect::<Vec<_>>().into_iter()) as Box<dyn Iterator<Item = Result<VirtualFsEntry<F, I>>>>
+                    },
+                    Err(e) => Box::new(std::iter::once(Err(e))) as Box<dyn Iterator<Item = Result<VirtualFsEntry<F, I>>>>,
+                }.collect::<Vec<_>>()
+            })))
+    }
+}
+
+impl<F: Read + Seek, I: VirtualFsInner<F>> Clone for VirtualFsDirectory<F, I> {
+    fn clone(&self) -> Self {
+        Self { fs: self.fs.clone(), path: self.path.clone(), entries: self.entries.clone() }
+    }
+}
+
+
+
 pub enum VirtualFsEntry<F: Read + Seek, I: VirtualFsInner<F>> {
-    File(VirtualFs<F, I>, FullPath, F),
-    Directory(VirtualFs<F, I>, FullPath, Vec<FullPath>),
+    File(VirtualFsFile<F, I>),
+    Directory(VirtualFsDirectory<F, I>),
 }
 
 impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsEntry<F, I> {
-    pub fn path(&self) -> FullPath {
+    pub fn new_file(fs: VirtualFs<F, I>, path: FullPath, file: F) -> Self {
+        VirtualFsEntry::File(VirtualFsFile::new(fs, path, file))
+    }
+    pub fn new_directory(fs: VirtualFs<F, I>, path: FullPath, entries: Vec<FullPath>) -> Self {
+        VirtualFsEntry::Directory(VirtualFsDirectory::new(fs, path, entries))
+    }
+
+    pub fn path(&self) -> &FullPath {
         match self {
-            VirtualFsEntry::File(_, path, _) => path.clone(),
-            VirtualFsEntry::Directory(_, path, _) => path.clone(),
+            VirtualFsEntry::File(file) => file.path(),
+            VirtualFsEntry::Directory(directory) => directory.path(),
+        }
+    }
+    pub fn fs(&self) -> &VirtualFs<F, I> {
+        match self {
+            VirtualFsEntry::File(file) => file.fs(),
+            VirtualFsEntry::Directory(directory) => directory.fs(),
+        }
+    }
+    pub fn fs_mut(&mut self) -> &mut VirtualFs<F, I> {
+        match self {
+            VirtualFsEntry::File(file) => file.fs_mut(),
+            VirtualFsEntry::Directory(directory) => directory.fs_mut(),
+        }
+    }
+    pub fn size(&mut self) -> Result<u64> {
+        match self {
+            VirtualFsEntry::File(file) => file.size(),
+            VirtualFsEntry::Directory(directory) => directory.size(),
         }
     }
 
-    pub fn fs(&self) -> VirtualFs<F, I> {
-        match self {
-            VirtualFsEntry::File(fs, _, _) => fs.clone(),
-            VirtualFsEntry::Directory(fs, _, _) => fs.clone(),
+    pub fn as_file(self) -> Option<VirtualFsFile<F, I>> {
+        if let VirtualFsEntry::File(file) = self {
+            Some(file)
+        } else {
+            None
         }
     }
-
-    pub fn is_file(&self) -> bool {
-        match self {
-            VirtualFsEntry::File(_, _, _) => true,
-            VirtualFsEntry::Directory(_, _, _) => false,
+    pub fn as_directory(self) -> Option<VirtualFsDirectory<F, I>> {
+        if let VirtualFsEntry::Directory(directory) = self {
+            Some(directory)
+        } else {
+            None
         }
     }
-
-    pub fn is_directory(&self) -> bool {
-        match self {
-            VirtualFsEntry::File(_, _, _) => false,
-            VirtualFsEntry::Directory(_, _, _) => true,
-        }
-    }
-
-    pub fn as_file(&mut self) -> Option<&mut F> {
-        match self {
-            VirtualFsEntry::File(_, _, file) => Some(file),
-            VirtualFsEntry::Directory(_, _, _) => None,
-        }
-    }
-
-    pub fn as_directory(&self) -> Option<Vec<FullPath>> {
-        match self {
-            VirtualFsEntry::File(_, _, _) => None,
-            VirtualFsEntry::Directory(_, _, entries) => Some(entries.clone()),
-        }
-    }
-
-    pub fn children(&mut self) -> Result<Vec<VirtualFsEntry<F, I>>> {
-        match self {
-            VirtualFsEntry::File(_, _, _) => Err(anyhow!("Cannot get children on file entry")),
-            VirtualFsEntry::Directory(fs, _, entries) => Ok(
-                entries
-                    .iter()
-                    .map(|entry| fs.read(entry.string()))
-                    .collect::<Result<Vec<_>>>()?
-            ),
-        }
-    }
-
 }
+
+impl<F: Read + Seek + Clone, I: VirtualFsInner<F>> Clone for VirtualFsEntry<F, I> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::File(file) => Self::File(file.clone()),
+            Self::Directory(directory) => Self::Directory(directory.clone()),
+        }
+    }
+}
+
+
+
+
 
 pub struct VirtualFs<F: Read + Seek, I: VirtualFsInner<F>>(Arc<Mutex<I>>, PhantomData<F>);
 
@@ -157,20 +295,20 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFs<F, I> {
     pub fn read<P: Into<FullPath>>(&mut self, path: P) -> Result<VirtualFsEntry<F, I>> {
         let path: FullPath = path.into();
         match self.0.lock().unwrap().read(path.str()) {
-            Ok(VirtualFsInnerEntry::File(file)) => Ok(VirtualFsEntry::File(
-                self.clone(),
-                FullPath::new(path),
-                file
-            )),
-            Ok(VirtualFsInnerEntry::Directory(entries)) => Ok(VirtualFsEntry::Directory(
+            Ok(VirtualFsInnerEntry::File(file)) => Ok(VirtualFsEntry::new_file(self.clone(), FullPath::new(path), file)),
+            Ok(VirtualFsInnerEntry::Directory(entries)) => Ok(VirtualFsEntry::new_directory(
                 self.clone(),
                 FullPath::new(path.clone()),
                 entries.into_iter()
                     .map(|name| FullPath::new_path_filename(path.clone(), name.clone()))
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>(),
             )),
             Err(err) => Err(err),
         }
+    }
+
+    pub fn root(&mut self) -> Result<VirtualFsDirectory<F, I>> {
+        self.read("")?.as_directory().ok_or(anyhow!("VirtualFs root entry is expected to be directory"))
     }
 }
 

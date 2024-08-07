@@ -12,6 +12,7 @@ pub struct VpkExplorer<F: Read + Seek> {
     uuid: Uuid,
     vpk: VirtualFs<VpkFile<F>, VpkArchive<F>>,
     expanded: HashMap<FullPath, bool>,
+    estimated_size: Option<u64>,
 }
 
 impl<F: Read + Seek> VpkExplorer<F> {
@@ -22,46 +23,53 @@ impl<F: Read + Seek> VpkExplorer<F> {
             uuid: Uuid::now_v7(),
             vpk: VirtualFs::new(vpk),
             expanded: HashMap::new(),
+            estimated_size: None,
         })
     }
 
-    fn update_node(&mut self, ui: &mut egui::Ui, entry: &mut VirtualFsEntry<VpkFile<F>, VpkArchive<F>>) {
+    fn update_node(&mut self, ui: &mut egui::Ui, entry: &mut VirtualFsEntry<VpkFile<F>, VpkArchive<F>>) -> Result<()> {
+
         match entry {
-            VirtualFsEntry::File(_, path, file) => {
+            VirtualFsEntry::File(file) => {
                 if ui.add(
                     egui::Button::image_and_text(
                         egui::Image::new(crate::app::assets::LUCIDE_FILE)
                             .tint(ui.style().visuals.text_color()),
-                        path.name().unwrap_or(""),
+                        file.path().name().unwrap_or(""),
                     )
                 ).clicked() {
-                    file.rewind().expect("VTF failed to reset file stream position.");
-                    self.app_context.open_file(file.clone(), Some(path.to_string())).expect("Failed to open VTF file");
+                    file.rewind()?;
+                    self.app_context.open_file(file.clone(), Some(entry.path().to_string()))?;
                 }
             },
-            VirtualFsEntry::Directory(_, path, _) => {
+            VirtualFsEntry::Directory(directory) => {
                 if ui.add(
                     egui::Button::image_and_text(
                         egui::Image::new(crate::app::assets::LUCIDE_FOLDER)
                             .tint(ui.style().visuals.text_color()),
-                        path.name().unwrap_or(""),
+                        directory.path().name().unwrap_or(""),
                     )
                 ).clicked() {
-                    self.expanded.insert(path.clone(), !*self.expanded.get(path).unwrap_or(&false));
+                    self.expanded.insert(directory.path().clone(), !*self.expanded.get(directory.path()).unwrap_or(&false));
                 }
-                if *self.expanded.get(path).unwrap_or(&false) {
-                    let entries = entry.children().unwrap();
+                if *self.expanded.get(directory.path()).unwrap_or(&false) {
+                    let entries_iter = directory.entries();
                     ui.horizontal(|ui| {
                         ui.add_space(16.0);
                         ui.vertical(|ui| {
-                            for mut entry in entries {
-                                self.update_node(ui, &mut entry);
+                            for entry in entries_iter {
+                                match entry {
+                                    Ok(mut entry) => { self.update_node(ui, &mut entry).unwrap(); },
+                                    Err(err) => { ui.colored_label(egui::Color32::RED, err.to_string()); },
+                                }
                             }
                         });
                     });
                 }
             },
         }
+        
+        Ok(())
     }
 }
 
@@ -88,9 +96,33 @@ impl<F: Read + Seek> Explorer for VpkExplorer<F> {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
-        // TODO: Implement a Windows-like file explorer alongside this one.
-        let mut entry = self.vpk.read("")?;
-        self.update_node(ui, &mut entry);
+
+        crate::util::egui::splitter::Splitter::horizontal(self.uuid).min_size(240.0).show(ui, |ui_a, ui_b| {
+            
+            // TODO: Implement a Windows-like file explorer alongside this one.
+            let mut root = self.vpk.root().unwrap().as_entry();
+            self.update_node(ui_a, &mut root).unwrap();
+
+            ui_b.vertical(|ui| {
+                let estimated_size = self.estimated_size.get_or_insert_with(|| {
+                    self.vpk.root().unwrap().size().unwrap()
+                });
+                ui.label(format!("File System Size: {}", estimated_size));
+
+                if ui.button("Extract").clicked() {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .set_title("Extract File System")
+                        .set_file_name(self.name.clone().unwrap_or("archive".to_owned()))
+                        .pick_folder()
+                    {
+                        println!("Save to {:?}", path);
+                        self.vpk.root().unwrap().save(path).unwrap();
+                    }
+                }
+            });
+
+        });
+
         Ok(())
     }
 }
