@@ -1,6 +1,5 @@
 
 pub mod image;
-pub mod source_engine;
 pub mod reader;
 pub mod texture;
 pub mod egui;

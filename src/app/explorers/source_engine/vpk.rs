@@ -1,6 +1,6 @@
 
 use std::{fs::File, io::{Read, Seek}, path::PathBuf};
-use crate::{app::{explorers::virtual_fs::{VirtualFsExplorer, VirtualFsExplorerOptions}, Explorer, SharedAppContext}, util::{source_engine::vpk::{VpkArchive, VpkArchiveFiles, VpkFile}, virtual_fs::VirtualFs}};
+use crate::{app::{explorers::virtual_fs::{VirtualFsExplorer, VirtualFsExplorerOptions}, Explorer, SharedAppContext}, explorers::source_engine::vpk::{VpkArchive, VpkArchiveFiles, VpkFile}, util::virtual_fs::VirtualFs};
 use anyhow::Result;
 use uuid::Uuid;
 

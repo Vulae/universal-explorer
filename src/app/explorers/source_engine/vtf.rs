@@ -1,6 +1,6 @@
 
 use std::{fs::File, io::{Read, Seek}, path::PathBuf};
-use crate::{app::Explorer, util::source_engine::vtf::Vtf};
+use crate::{app::Explorer, explorers::source_engine::vtf::Vtf};
 use anyhow::Result;
 use uuid::Uuid;
 

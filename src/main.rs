@@ -4,6 +4,7 @@
 
 mod app;
 mod util;
+mod explorers;
 
 use std::path::PathBuf;
 
