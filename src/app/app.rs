@@ -156,34 +156,6 @@ impl eframe::App for SharedAppContext {
 }
 
 impl SharedAppContext {
-    fn ui_openable_asset(&mut self, ui: &mut egui::Ui, name: &str, bytes: &[u8]) {
-        if ui.button(name).clicked() {
-            self.open_file(std::io::Cursor::new(bytes), Some(name.to_owned())).expect("Failed to open file");
-        }
-    }
-
-    fn ui_openable_asset_image(&mut self, ui: &mut egui::Ui, name: &str, image: egui::ImageSource) {
-        let bytes = match image {
-            egui::ImageSource::Bytes { uri: _, bytes } => bytes,
-            _ => unreachable!("image should always be egui::ImageSource::Bytes"),
-        };
-        self.ui_openable_asset(ui, name, bytes.as_ref());
-    }
-
-    fn ui_openable_builtin_filetree(&mut self, ui: &mut egui::Ui) {
-        ui.menu_button("Built-In", |ui| {
-            self.ui_openable_asset(ui, "README.md", crate::app::assets::README);
-            self.ui_openable_asset(ui, "LICENSE", crate::app::assets::LICENSE);
-            self.ui_openable_asset_image(ui, "icon.png", crate::app::assets::UNIVERSAL_EXPLORER_ICON);
-            ui.menu_button("Lucide", |ui| {
-                self.ui_openable_asset(ui, "LICENSE", crate::app::assets::LUCIDE_LICENSE);
-                self.ui_openable_asset_image(ui, "file.svg", crate::app::assets::LUCIDE_FILE);
-                self.ui_openable_asset_image(ui, "folder.svg", crate::app::assets::LUCIDE_FOLDER);
-                self.ui_openable_asset_image(ui, "folder-open.svg", crate::app::assets::LUCIDE_FOLDER_OPEN);
-            });
-        });
-    }
-
     fn ui_decorations(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("application_decorations")
             .frame(
@@ -208,7 +180,12 @@ impl SharedAppContext {
                         });
                     });
 
-                    self.ui_openable_builtin_filetree(ui);
+                    crate::util::egui::virtual_fs::render_dropdown_fs(ui, &mut crate::app::assets::ASSETS_FS.clone(), "Built-In", |entry| {
+                        if let Some(file) = entry.as_file() {
+                            let name = file.path().name().map(|s| s.to_owned());
+                            self.open_file(file, name).expect("Failed to open file");
+                        }
+                    });
 
                     ui.label(format!("{:?}", self.0.borrow().last_frame_time));
 

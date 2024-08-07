@@ -142,9 +142,9 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> Seek for VirtualFsFile<F, I> {
     }
 }
 
-impl<F: Read + Seek + Clone, I: VirtualFsInner<F>> Clone for VirtualFsFile<F, I> {
+impl<F: Read + Seek, I: VirtualFsInner<F>> Clone for VirtualFsFile<F, I> {
     fn clone(&self) -> Self {
-        Self { fs: self.fs.clone(), path: self.path.clone(), file: self.file.clone() }
+        self.fs.clone().read(self.path.clone()).unwrap().as_file().unwrap()
     }
 }
 
@@ -272,7 +272,7 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsEntry<F, I> {
     }
 }
 
-impl<F: Read + Seek + Clone, I: VirtualFsInner<F>> Clone for VirtualFsEntry<F, I> {
+impl<F: Read + Seek, I: VirtualFsInner<F>> Clone for VirtualFsEntry<F, I> {
     fn clone(&self) -> Self {
         match self {
             Self::File(file) => Self::File(file.clone()),
