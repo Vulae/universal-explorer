@@ -4,8 +4,9 @@ pub mod reader;
 pub mod texture;
 pub mod egui;
 pub mod virtual_fs;
+pub mod pickle;
 
-use std::{io::{self, Read, Seek}, path::PathBuf, sync::{Arc, Mutex}};
+use std::{io::{self, Read, Seek}, num::ParseIntError, path::PathBuf, sync::{Arc, Mutex}};
 
 
 
@@ -86,3 +87,16 @@ impl<F: Read + Seek> Clone for InnerFile<F> {
         Self { file: self.file.clone(), offset: self.offset, size: self.size, pointer: self.pointer }
     }
 }
+
+
+
+pub fn decode_hex(hex_string: &str) -> Result<Vec<u8>, ParseIntError> {
+    (0..hex_string.len())
+        .step_by(2)
+        .map(|i| {
+            u8::from_str_radix(&hex_string[i..(i + 2)], 16)
+        })
+        .collect()
+}
+
+

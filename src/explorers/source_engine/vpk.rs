@@ -204,7 +204,7 @@ impl<F: Read + Seek> VpkArchive<F> {
             _ => return Err(anyhow!("Unsupported .vpk version.")),
         }
 
-        let end_of_directory = reader.position() + (tree_size as u64);
+        let end_of_directory = reader.position()? + (tree_size as u64);
 
 
 

@@ -1,7 +1,7 @@
 
 use std::{cell::RefCell, fs::File, io::{Read, Seek}, path::{Path, PathBuf}, rc::Rc};
 use anyhow::{anyhow, Result};
-use super::explorers::{image::ImageExplorer, source_engine::{vpk::VpkExplorer, vtf::VtfExplorer}, text::TextExplorer};
+use super::explorers::{image::ImageExplorer, renpy::rpa::RenPyArchiveExplorer, source_engine::{vpk::VpkExplorer, vtf::VtfExplorer}, text::TextExplorer};
 
 
 
@@ -113,6 +113,10 @@ impl SharedAppContext {
     
         if path.is_file() {
             if let Ok(explorer) = VpkExplorer::open(self.clone(), &path) {
+                self.new_explorer(explorer);
+                return Ok(())
+            }
+            if let Ok(explorer) = RenPyArchiveExplorer::open(self.clone(), &path) {
                 self.new_explorer(explorer);
                 return Ok(())
             }

@@ -1,6 +1,6 @@
 
 use std::io::{Read, Seek, SeekFrom};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 
 
@@ -145,6 +145,11 @@ impl<T: Read> Reader<T> {
         Ok(String::from_utf8(vec)?)
     }
 
+    pub fn read_length_string<P: Primitive + TryInto<usize>>(&mut self) -> Result<String> {
+        let length: usize = self.read::<P>()?.try_into().map_err(|_| anyhow!("Could not convert primitive to usize"))?;
+        Ok(self.read_string(Some(length))?)
+    }
+
     // TODO: Don't do it this way.
     pub fn skip(&mut self, length: u64) -> Result<()> {
         for _ in 0..length {
@@ -164,7 +169,20 @@ impl<T: Read + Seek> Reader<T> {
         Ok(self.data.rewind()?)
     }
 
-    pub fn position(&mut self) -> u64 {
-        self.seek(SeekFrom::Current(0)).unwrap()
+    pub fn position(&mut self) -> Result<u64> {
+        self.seek(SeekFrom::Current(0))
+    }
+
+    pub fn size(&mut self) -> Result<u64> {
+        let position = self.position()?;
+        let size = self.seek(SeekFrom::End(0))?;
+        self.seek(SeekFrom::Start(position))?;
+        Ok(size)
+    }
+
+    pub fn bytes_remaining(&mut self) -> Result<u64> {
+        let position = self.position()?;
+        let size = self.size()?;
+        Ok(size - position)
     }
 }
