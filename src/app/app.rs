@@ -1,7 +1,7 @@
 
-use std::{cell::RefCell, fs::File, io::{Read, Seek}, path::{Path, PathBuf}, rc::Rc};
-use anyhow::{anyhow, Result};
-use super::explorers::{image::ImageExplorer, renpy::rpa::RenPyArchiveExplorer, source_engine::{vpk::VpkExplorer, vtf::VtfExplorer}, text::TextExplorer};
+use std::{cell::RefCell, io::{Read, Seek}, path::Path, rc::Rc};
+use anyhow::Result;
+use super::loader;
 
 
 
@@ -55,10 +55,6 @@ impl AppContext {
         self.dock_state.iter_all_tabs().count() > 0
     }
 
-    fn new_explorer(&mut self, explorer: impl Explorer + 'static) {
-        self.explorers_to_add.push(SharedExplorer(Rc::new(RefCell::new(explorer))));
-    }
-
     fn push_new_explorers_to_dock_state(&mut self) {
         // TODO: Reimplement auto_focus_new_explorers
         while let Some(explorer) = self.explorers_to_add.pop() {
@@ -80,53 +76,21 @@ impl SharedAppContext {
         Self(Rc::new(RefCell::new(app_context)))
     }
 
-    pub fn new_explorer(&mut self, explorer: impl Explorer + 'static) {
-        self.0.borrow_mut().new_explorer(explorer);
+    pub fn new_explorer(&mut self, explorer: Box<dyn Explorer>) {
+        self.0.borrow_mut().explorers_to_add.push(SharedExplorer(Rc::new(RefCell::new(explorer))));
     }
 
-
-
-    pub fn open_file<F: Read + Seek>(&mut self, mut file: F, filename: Option<String>) -> Result<()> {
-        // FIXME: Do not clone filename.
-        if let Ok(explorer) = ImageExplorer::file(&mut file, filename.clone()) {
+    pub fn open_file<F: Read + Seek>(&mut self, file: F, filename: Option<String>) -> Result<()> {
+        if let Some(explorer) = loader::open_file(self.clone(), file, filename)? {
             self.new_explorer(explorer);
-            return Ok(());
         }
-        if let Ok(explorer) = VtfExplorer::file(&mut file, filename.clone()) {
-            self.new_explorer(explorer);
-            return Ok(());
-        }
-        if let Ok(explorer) = TextExplorer::file(&mut file, filename.clone()) {
-            self.new_explorer(explorer);
-            return Ok(());
-        }
-
         Ok(())
     }
 
     pub fn open<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
-        let path: PathBuf = path.as_ref().into();
-    
-        if !path.try_exists()? {
-            return Err(anyhow!("Failed to open path."));
+        if let Some(explorer) = loader::open(self.clone(), path)? {
+            self.new_explorer(explorer);
         }
-    
-        if path.is_file() {
-            if let Ok(explorer) = VpkExplorer::open(self.clone(), &path) {
-                self.new_explorer(explorer);
-                return Ok(())
-            }
-            if let Ok(explorer) = RenPyArchiveExplorer::open(self.clone(), &path) {
-                self.new_explorer(explorer);
-                return Ok(())
-            }
-
-            self.open_file(
-                File::open(&path)?,
-                crate::util::filename(&path),
-            )?;
-        }
-    
         Ok(())
     }
 }
@@ -280,7 +244,7 @@ pub trait Explorer {
 
 
 #[derive(Clone)]
-pub struct SharedExplorer(Rc<RefCell<dyn Explorer>>);
+pub struct SharedExplorer(Rc<RefCell<Box<dyn Explorer>>>);
 
 impl Explorer for SharedExplorer {
     fn uuid(&self) -> uuid::Uuid { self.0.borrow().uuid() }

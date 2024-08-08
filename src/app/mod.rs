@@ -1,6 +1,7 @@
 
-mod app;
+pub mod app;
 pub mod assets;
+pub mod loader;
 
 pub use app::SharedAppContext;
 pub use app::Explorer;
