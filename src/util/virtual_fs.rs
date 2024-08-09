@@ -61,6 +61,19 @@ impl FullPath {
     pub fn name(&self) -> Option<&str> {
         std::path::Path::new(&self.0).file_name().and_then(|n| n.to_str())
     }
+
+    pub fn segments(&self) -> Vec<&str> {
+        self.0.split('/').collect()
+    }
+
+    pub fn parent(&self) -> Option<FullPath> {
+        let mut parts = self.segments();
+        if parts.is_empty() || (parts.len() == 1 && parts[0].is_empty()) {
+            return None;
+        }
+        parts.pop();
+        Some(FullPath::new(parts.join("/")))
+    }
 }
 
 impl core::fmt::Display for FullPath {

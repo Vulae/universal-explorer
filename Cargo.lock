@@ -1816,6 +1816,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "glob-match"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9985c9503b412198aa4197559e9a318524ebc4519c229bfa05a535828c950b9d"
+
+[[package]]
 name = "glow"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3995,6 +4001,7 @@ dependencies = [
  "egui_extras",
  "env_logger",
  "flate2",
+ "glob-match",
  "image",
  "itertools 0.13.0",
  "rayon",

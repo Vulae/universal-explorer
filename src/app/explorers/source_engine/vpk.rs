@@ -18,11 +18,10 @@ impl<F: Read + Seek> VpkExplorer<F> {
                 VirtualFs::new(vpk),
                 VirtualFsExplorerOptions {
                     name,
-                    calculate_size: true,
                     allow_download: true,
                     ..Default::default()
                 },
-            ),
+            )?,
         })
     }
 }

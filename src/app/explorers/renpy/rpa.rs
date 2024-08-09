@@ -18,11 +18,10 @@ impl<F: Read + Seek> RenPyArchiveExplorer<F> {
                 VirtualFs::new(rpa),
                 VirtualFsExplorerOptions {
                     name,
-                    calculate_size: true,
                     allow_download: true,
                     ..Default::default()
                 },
-            ),
+            )?,
         })
     }
 
