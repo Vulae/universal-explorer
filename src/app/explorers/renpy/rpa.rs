@@ -1,6 +1,6 @@
 
 use std::{fs::File, io::{Read, Seek}, path::PathBuf};
-use crate::{app::{explorers::virtual_fs::{VirtualFsExplorer, VirtualFsExplorerOptions}, Explorer, SharedAppContext}, explorers::renpy::rpa::RenPyArchive, util::{virtual_fs::VirtualFs, InnerFile}};
+use crate::{app::{explorers::virtual_fs::{VirtualFsExplorer, VirtualFsExplorerOptions}, Explorer, SharedAppContext}, explorers::renpy::rpa::RenPyArchive, util::{file::InnerFile, virtual_fs::VirtualFs}};
 use anyhow::Result;
 use uuid::Uuid;
 
@@ -30,7 +30,7 @@ impl<F: Read + Seek> RenPyArchiveExplorer<F> {
         Ok(RenPyArchiveExplorer::new(
             app_context,
             RenPyArchive::load(file)?,
-            filename.map(|f| crate::util::filename(&f)).flatten()
+            filename.map(|f| crate::util::file::filename(&f)).flatten()
         )?)
     }
 }
@@ -42,7 +42,7 @@ impl RenPyArchiveExplorer<File> {
         RenPyArchiveExplorer::new(
             app_context,
             rpa,
-            crate::util::filename(path),
+            crate::util::file::filename(path),
         )
     }
 }

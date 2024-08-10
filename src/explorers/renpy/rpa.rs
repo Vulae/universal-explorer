@@ -2,7 +2,7 @@
 use std::{collections::HashMap, io::{Read, Seek}, sync::{Arc, Mutex}};
 use anyhow::{anyhow, Result};
 use itertools::Itertools;
-use crate::util::InnerFile;
+use crate::util::file::InnerFile;
 
 
 
@@ -139,8 +139,8 @@ impl<F: Read + Seek> RenPyArchive<F> {
 
 
 
-impl<F: Read + Seek> crate::util::virtual_fs::VirtualFsInner<crate::util::InnerFile<F>> for RenPyArchive<F> {
-    fn read(&mut self, path: &str) -> Result<crate::util::virtual_fs::VirtualFsInnerEntry<crate::util::InnerFile<F>>> {
+impl<F: Read + Seek> crate::util::virtual_fs::VirtualFsInner<InnerFile<F>> for RenPyArchive<F> {
+    fn read(&mut self, path: &str) -> Result<crate::util::virtual_fs::VirtualFsInnerEntry<InnerFile<F>>> {
         let mut components = path.split('/');
 
         let mut current = &self.node;

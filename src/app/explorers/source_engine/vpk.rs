@@ -34,7 +34,7 @@ impl VpkExplorer<File> {
         VpkExplorer::new(
             app_context,
             vpk,
-            crate::util::filename(&archive_name),
+            crate::util::file::filename(&archive_name),
         )
     }
 }

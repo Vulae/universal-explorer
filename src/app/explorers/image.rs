@@ -37,7 +37,7 @@ impl ImageExplorer {
         };
         Ok(ImageExplorer::new(
             image,
-            filename.map(|f| crate::util::filename(&f)).flatten(),
+            filename.map(|f| crate::util::file::filename(&f)).flatten(),
         ))
     }
 
@@ -45,7 +45,7 @@ impl ImageExplorer {
         let path: PathBuf = path.into();
         ImageExplorer::file(
             File::open(&path)?,
-            crate::util::filename(&path),
+            crate::util::file::filename(&path),
         )
     }
 }

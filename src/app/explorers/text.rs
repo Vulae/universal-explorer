@@ -42,7 +42,7 @@ impl TextExplorer {
         file.read_to_string(&mut str)?;
         Ok(TextExplorer::new(
             str,
-            filename.map(|f| crate::util::filename(&f)).flatten(),
+            filename.map(|f| crate::util::file::filename(&f)).flatten(),
         ))
     }
 
@@ -50,7 +50,7 @@ impl TextExplorer {
         let path: PathBuf = path.into();
         TextExplorer::file(
             &mut File::open(&path)?,
-            crate::util::filename(&path),
+            crate::util::file::filename(&path),
         )
     }
 }

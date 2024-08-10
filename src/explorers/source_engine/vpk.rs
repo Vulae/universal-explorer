@@ -2,7 +2,7 @@
 use std::{fs::{self, File}, io::{Read, Seek}, path::PathBuf, sync::{Arc, Mutex}};
 use anyhow::{anyhow, Result};
 use regex::Regex;
-use crate::util::InnerFile;
+use crate::util::file::InnerFile;
 
 
 

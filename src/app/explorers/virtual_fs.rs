@@ -22,6 +22,7 @@ pub struct VirtualFsExplorer<F: Read + Seek, I: VirtualFsInner<F>> {
     view_directory: VirtualFsDirectory<F, I>,
     search: String,
     cached_icons: HashMap<FullPath, Option<egui::ImageSource<'static>>>,
+    cached_icon_handles: Vec<egui::TextureHandle>,
 }
 
 impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsExplorer<F, I> {
@@ -35,6 +36,7 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsExplorer<F, I> {
             view_directory,
             search: String::new(),
             cached_icons: HashMap::new(),
+            cached_icon_handles: Vec::new(),
         })
     }
 }
@@ -179,15 +181,21 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> Explorer for VirtualFsExplorer<F, I> 
                                                     let name = file.path().name().unwrap_or("Error");
 
                                                     // TODO: This can probably be cleaned up using self.cached_icons.get_mut().get_or_insert_with()
+                                                    // TODO: Use multiple threads to load thumbnails.
                                                     if !self.cached_icons.contains_key(file.path()) {
-                                                        let icon = crate::app::loader::thumbnail_file(
+                                                        if let Some((icon, handle)) = crate::app::loader::thumbnail_file(
                                                             file.clone(),
                                                             file.path().name().map(|s| s.to_owned()),
                                                             ui.ctx(),
                                                             crate::util::image::SizeHint::Pixels((EntryDisplay::THUMBNAIL_SIZE.x * EntryDisplay::THUMBNAIL_SIZE.y * 1.5) as u64),
-                                                        );
-                                                        self.cached_icons.insert(file.path().clone(), icon);
-                                                        // println!("Loaded icon for \"{}\"", file.path());
+                                                        ) {
+                                                            self.cached_icons.insert(file.path().clone(), Some(icon));
+                                                            if let Some(handle) = handle {
+                                                                self.cached_icon_handles.push(handle);
+                                                            }
+                                                        } else {
+                                                            self.cached_icons.insert(file.path().clone(), None);
+                                                        }
                                                     }
 
                                                     let icon = self.cached_icons.get(file.path()).unwrap().clone()
@@ -247,15 +255,17 @@ impl<'a> egui::Widget for EntryDisplay<'a> {
         let response = ui.push_id(self.name, |ui| {
             ui.vertical_centered_justified(|ui| {
                 if let Some(icon) = self.icon {
-                    ui.add(
+                    ui.add_sized(
+                        Self::THUMBNAIL_SIZE,
                         egui::Image::new(icon.clone()) // FIXME: Don't clone!
-                            .max_size(Self::THUMBNAIL_SIZE)
+                            .max_size(Self::THUMBNAIL_SIZE),
                     );
                 } else {
-                    ui.add(
-                        egui::Image::new(egui::include_image!("../../../assets/error.png"))
+                    ui.add_sized(
+                        Self::THUMBNAIL_SIZE,
+                        egui::Image::new(crate::app::assets::ERROR)
                             .texture_options(egui::TextureOptions::NEAREST)
-                            .max_size(Self::THUMBNAIL_SIZE)
+                            .max_size(Self::THUMBNAIL_SIZE),
                     );
                 }
                 ui.add(

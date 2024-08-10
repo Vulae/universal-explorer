@@ -2,7 +2,7 @@
 use std::{fs::File, io::{Read, Seek}, path::{Path, PathBuf}};
 use super::{Explorer, SharedAppContext};
 use anyhow::{anyhow, Result};
-use crate::{app::explorers, util::image::SizeHint};
+use crate::{app::explorers, util::{file::FileSize, image::SizeHint}};
 
 
 
@@ -39,7 +39,7 @@ pub fn open<P: AsRef<Path>>(app_context: SharedAppContext, path: P) -> Result<Op
         open_file(
             app_context,
             File::open(&path)?,
-            crate::util::filename(&path),
+            crate::util::file::filename(&path),
         )?;
     }
 
@@ -48,28 +48,37 @@ pub fn open<P: AsRef<Path>>(app_context: SharedAppContext, path: P) -> Result<Op
 
 
 
-pub fn thumbnail_file(file: impl Read + Seek, filename: Option<String>, ctx: &egui::Context, hint: SizeHint) -> Option<egui::ImageSource<'static>> {
+
+
+fn image_source(image: image::DynamicImage, ctx: &egui::Context, hint: SizeHint) -> (egui::ImageSource<'static>, Option<egui::TextureHandle>) {
+    let image = hint.downscale_image(image);
+    let handle = crate::util::image::image_egui_handle(&image, ctx);
+    let source = egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&handle));
+    (source, Some(handle))
+}
+
+#[cfg_attr(debug_assertions, allow(unused))]
+pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, ctx: &egui::Context, hint: SizeHint) -> Option<(egui::ImageSource<'static>, Option<egui::TextureHandle>)> {
+    let file_size = FileSize::from_file(&mut file).ok()?;
 
     if let Some(filename) = &filename {
-        if let Ok(_) = image::ImageFormat::from_path(filename) {
-            return Some(crate::app::assets::LUCIDE_FILE_IMAGE);
+        if let Ok(format) = image::ImageFormat::from_path(filename) {
+            #[cfg(not(debug_assertions))] // Decoding images is VERY slow on debug build.
+            if file_size < FileSize::from_mebibytes(1) {
+                if let Ok(image) = image::ImageReader::with_format(std::io::BufReader::new(&mut file), format).decode() {
+                    return Some(image_source(image, ctx, hint));
+                }
+            }
+
+            return Some((crate::app::assets::LUCIDE_FILE_IMAGE, None));
         }
 
         if filename.ends_with(".vtf") {
             if let Some(texture) = crate::explorers::source_engine::vtf::Vtf::load_thumbnail(file, hint) {
-                let image = texture.to_image();
-                let handle = crate::util::image::image_egui_handle(&image, ctx);
-                let source = egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&handle));
-
-                // FIXME: Don't do this!
-                // Texture handle gets dropped after returned, causing texture to immediately go poof.
-                // So I just leak the texture so it never goes poof.
-                std::mem::forget(handle);
-
-                return Some(source);
-            } else {
-                return Some(crate::app::assets::LUCIDE_FILE_IMAGE);
+                return Some(image_source(texture.to_image(), ctx, hint));
             }
+
+            return Some((crate::app::assets::LUCIDE_FILE_IMAGE, None));
         }
 
     }

@@ -47,7 +47,7 @@ impl VtfExplorer {
         file.rewind()?;
         Ok(VtfExplorer::new(
             Vtf::load(file)?,
-            filename.map(|f| crate::util::filename(&f)).flatten()
+            filename.map(|f| crate::util::file::filename(&f)).flatten()
         ))
     }
 
@@ -55,7 +55,7 @@ impl VtfExplorer {
         let path: PathBuf = path.into();
         VtfExplorer::file(
             File::open(&path)?,
-            crate::util::filename(&path),
+            crate::util::file::filename(&path),
         )
     }
 }

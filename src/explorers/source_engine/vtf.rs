@@ -517,7 +517,11 @@ impl Vtf {
         if let Ok(vtf) = Vtf::load(data) {
             let mut mipmap = 0;
             while mipmap < vtf.mipmaps() {
-                if hint.test(vtf.width() >> mipmap, vtf.height() >> mipmap) {
+                if hint.satisfies(vtf.width() >> mipmap, vtf.height() >> mipmap) {
+                    if mipmap > 0 {
+                        // Go to previous mipmap so scaling is a bit more clean.
+                        mipmap -= 1;
+                    }
                     break;
                 }
                 mipmap += 1;
