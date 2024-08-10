@@ -1,8 +1,9 @@
 
 pub const UNIVERSAL_EXPLORER_ICON: egui::ImageSource = egui::include_image!("../../assets/icon.png");
-pub const LUCIDE_FILE: egui::ImageSource = egui::include_image!("../../assets/lucide/file.svg");
 pub const LUCIDE_FOLDER: egui::ImageSource = egui::include_image!("../../assets/lucide/folder.svg");
 pub const LUCIDE_FOLDER_OPEN: egui::ImageSource = egui::include_image!("../../assets/lucide/folder-open.svg");
+pub const LUCIDE_FILE: egui::ImageSource = egui::include_image!("../../assets/lucide/file.svg");
+pub const LUCIDE_FILE_IMAGE: egui::ImageSource = egui::include_image!("../../assets/lucide/file-image.svg");
 
 pub const README: &[u8] = include_bytes!("../../README.md");
 pub const LICENSE: &[u8] = include_bytes!("../../LICENSE");
@@ -66,9 +67,10 @@ pub static ASSETS_FS: LazyLock<VirtualFs<Cursor<Vec<u8>>, AssetsVirtualFsInner>>
         ("icon.png".to_owned(), AssetsVirtualFsNode::File(image_bytes(UNIVERSAL_EXPLORER_ICON).to_vec())),
         ("lucide".to_owned(), AssetsVirtualFsNode::Directory(HashMap::from([
             ("LICENSE.md".to_owned(), AssetsVirtualFsNode::File(LUCIDE_LICENSE.to_vec())),
-            ("file.svg".to_owned(), AssetsVirtualFsNode::File(image_bytes(LUCIDE_FILE).to_vec())),
             ("folder.svg".to_owned(), AssetsVirtualFsNode::File(image_bytes(LUCIDE_FOLDER).to_vec())),
             ("folder-open.svg".to_owned(), AssetsVirtualFsNode::File(image_bytes(LUCIDE_FOLDER_OPEN).to_vec())),
+            ("file.svg".to_owned(), AssetsVirtualFsNode::File(image_bytes(LUCIDE_FILE).to_vec())),
+            ("file-image.svg".to_owned(), AssetsVirtualFsNode::File(image_bytes(LUCIDE_FILE_IMAGE).to_vec())),
         ])))
     ]))))
     

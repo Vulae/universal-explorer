@@ -114,3 +114,24 @@ pub fn save_image(image: &DynamicImage, filename: Option<String>) -> Result<Opti
         Ok(None)
     }
 }
+
+
+
+#[derive(Debug, Clone, Copy)]
+pub enum SizeHint {
+    SizeBoth(u32, u32),
+    SizeEither(u32, u32),
+    Pixels(u64),
+}
+
+impl SizeHint {
+    pub fn test(&self, width: u32, height: u32) -> bool {
+        match self {
+            SizeHint::SizeBoth(hint_width, hint_height) => width <= *hint_width && height <= *hint_height,
+            SizeHint::SizeEither(hint_width, hint_height) => width <= *hint_width || height <= *hint_height,
+            SizeHint::Pixels(hint_pixels) => (width as u64) * (height as u64) <= *hint_pixels,
+        }
+    }
+}
+
+

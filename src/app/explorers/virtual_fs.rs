@@ -1,5 +1,5 @@
 
-use std::io::{Read, Seek};
+use std::{collections::HashMap, io::{Read, Seek}};
 use crate::{app::{Explorer, SharedAppContext}, util::virtual_fs::{FullPath, VirtualFs, VirtualFsDirectory, VirtualFsEntry, VirtualFsInner}};
 use anyhow::Result;
 use uuid::Uuid;
@@ -21,6 +21,7 @@ pub struct VirtualFsExplorer<F: Read + Seek, I: VirtualFsInner<F>> {
     fs: VirtualFs<F, I>,
     view_directory: VirtualFsDirectory<F, I>,
     search: String,
+    cached_icons: HashMap<FullPath, Option<egui::ImageSource<'static>>>,
 }
 
 impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsExplorer<F, I> {
@@ -33,6 +34,7 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsExplorer<F, I> {
             fs,
             view_directory,
             search: String::new(),
+            cached_icons: HashMap::new(),
         })
     }
 }
@@ -175,7 +177,23 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> Explorer for VirtualFsExplorer<F, I> 
                                                 },
                                                 VirtualFsEntry::File(file) => {
                                                     let name = file.path().name().unwrap_or("Error");
-                                                    if ui.add(EntryDisplay::new(name, Some(&crate::app::assets::LUCIDE_FILE))).clicked() {
+
+                                                    // TODO: This can probably be cleaned up using self.cached_icons.get_mut().get_or_insert_with()
+                                                    if !self.cached_icons.contains_key(file.path()) {
+                                                        let icon = crate::app::loader::thumbnail_file(
+                                                            file.clone(),
+                                                            file.path().name().map(|s| s.to_owned()),
+                                                            ui.ctx(),
+                                                            crate::util::image::SizeHint::Pixels((EntryDisplay::THUMBNAIL_SIZE.x * EntryDisplay::THUMBNAIL_SIZE.y * 1.5) as u64),
+                                                        );
+                                                        self.cached_icons.insert(file.path().clone(), icon);
+                                                        // println!("Loaded icon for \"{}\"", file.path());
+                                                    }
+
+                                                    let icon = self.cached_icons.get(file.path()).unwrap().clone()
+                                                        .or(Some(crate::app::assets::LUCIDE_FILE));
+
+                                                    if ui.add(EntryDisplay::new(name, icon.as_ref())).clicked() {
                                                         let name = file.path().name().map(|s| s.to_owned());
                                                         self.app_context.open_file(file, name).unwrap();
                                                     }

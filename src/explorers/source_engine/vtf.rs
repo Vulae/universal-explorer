@@ -3,6 +3,7 @@ use std::io::{Read, Seek};
 use image::{DynamicImage, GrayAlphaImage, GrayImage, ImageBuffer, LumaA, Pixel, Rgb, RgbImage, Rgba, RgbaImage};
 use anyhow::{anyhow, Result};
 use bitflags::bitflags;
+use crate::util::image::SizeHint;
 
 
 
@@ -380,6 +381,11 @@ impl Vtf {
         self.textures.get(self.texture_index(mipmap, frame, face, slice)?)
     }
 
+    fn into_texture(self, mipmap: u32, frame: u32, face: u32, slice: u32) -> Option<VtfTexture> {
+        let index = self.texture_index(mipmap, frame, face, slice)?;
+        self.textures.into_iter().nth(index)
+    }
+
 
 
     pub fn load(data: impl Read + Seek) -> Result<Vtf> {
@@ -504,6 +510,23 @@ impl Vtf {
         Ok(textures)
     }
 
+
+
+    pub fn load_thumbnail(data: impl Read + Seek, hint: SizeHint) -> Option<VtfTexture> {
+        // TEMP: We're just loading the whole vtf for now.
+        if let Ok(vtf) = Vtf::load(data) {
+            let mut mipmap = 0;
+            while mipmap < vtf.mipmaps() {
+                if hint.test(vtf.width() >> mipmap, vtf.height() >> mipmap) {
+                    break;
+                }
+                mipmap += 1;
+            }
+            vtf.into_texture(mipmap, 0, 0, 0)
+        } else {
+            None
+        }
+    }
 }
 
 
