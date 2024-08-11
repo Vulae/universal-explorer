@@ -183,7 +183,7 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsDirectory<F, I> {
         }
         Ok(total)
     }
-    pub fn save<P: AsRef<std::path::Path>>(&mut self, real_path: P) -> Result<()> {
+    pub fn save<P: AsRef<std::path::Path>>(&self, real_path: P) -> Result<()> {
         for entry in self.entries_recursive() {
             if let Some(mut file) = entry?.as_file() {
                 let mut file_path = real_path.as_ref().to_path_buf();
@@ -197,11 +197,11 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsDirectory<F, I> {
 
     pub fn entries_paths(&self) -> impl Iterator<Item = &FullPath> { self.entries.iter() }
 
-    pub fn entries(&mut self) -> impl Iterator<Item = Result<VirtualFsEntry<F, I>>> + '_ {
+    pub fn entries(&self) -> impl Iterator<Item = Result<VirtualFsEntry<F, I>>> + '_ {
         let mut fs = self.fs().clone();
         self.entries_paths().map(move |p| fs.read(p.clone()))
     }
-    pub fn entries_recursive(&mut self) -> Box<impl Iterator<Item = Result<VirtualFsEntry<F, I>>> + '_> {
+    pub fn entries_recursive(&self) -> Box<impl Iterator<Item = Result<VirtualFsEntry<F, I>>> + '_> {
         let fs = self.fs().clone();
         let entries = self.entries.clone();
 
@@ -212,7 +212,7 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsDirectory<F, I> {
                     Ok(VirtualFsEntry::File(file)) => {
                         Box::new(std::iter::once(Ok(VirtualFsEntry::File(file)))) as Box<dyn Iterator<Item = Result<VirtualFsEntry<F, I>>>>
                     },
-                    Ok(VirtualFsEntry::Directory(mut directory)) => {
+                    Ok(VirtualFsEntry::Directory(directory)) => {
                         // FIXME: I'm too dumb to figure out lifetimes.
                         // Should not need to collect then back into iter.
                         Box::new(directory.entries_recursive().collect::<Vec<_>>().into_iter()) as Box<dyn Iterator<Item = Result<VirtualFsEntry<F, I>>>>

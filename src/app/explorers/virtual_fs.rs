@@ -21,6 +21,7 @@ pub struct VirtualFsExplorer<F: Read + Seek, I: VirtualFsInner<F>> {
 
     fs: VirtualFs<F, I>,
     view_directory: VirtualFsDirectory<F, I>,
+    new_view_directory: Option<VirtualFsDirectory<F, I>>,
 
     search: String,
 
@@ -38,6 +39,7 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
             uuid: Uuid::now_v7(),
             fs,
             view_directory,
+            new_view_directory: None,
             search: String::new(),
             cached_icons: HashMap::new(),
             cached_icon_handles: Vec::new(),
@@ -104,6 +106,58 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
 
         None
     }
+
+    fn entry_display(&mut self, ui: &mut egui::Ui, entry: VirtualFsEntry<F, I>) {
+        let path = entry.path().clone();
+        let name = path.name().unwrap_or("Error");
+        let icon = self.get_icon(&entry);
+
+        let response = ui.add(EntryDisplay::new(name, icon.as_ref()));
+
+        if response.clicked() {
+            match &entry {
+                VirtualFsEntry::File(file) => {
+                    let name = file.path().name().map(|s| s.to_owned());
+                    self.app_context.open_file(file.clone(), name).unwrap();
+                },
+                VirtualFsEntry::Directory(directory) => {
+                    self.new_view_directory = Some(directory.clone());
+                },
+            }
+        }
+
+        response.context_menu(|ui| {
+            if ui.button("Copy Path").clicked() {
+                ui.output_mut(|o| o.copied_text = path.to_string());
+            }
+            if ui.button("Extract").clicked() {
+
+                let dialog = rfd::FileDialog::new()
+                    .set_title(format!("Extract {}", path))
+                    .set_file_name(path.name().unwrap_or("archive"))
+                    .set_can_create_directories(true);
+
+                match entry {
+                    VirtualFsEntry::File(mut file) => {
+                        let save_name = path.name().unwrap_or("error");
+                        if let Some(save_path) = dialog.set_file_name(save_name).save_file() {
+                            println!("Extract file to {:?}", save_path);
+                            file.save(save_path).expect("Failed to save file");
+                        }
+                    },
+                    VirtualFsEntry::Directory(directory) => {
+                        if let Some(save_path) = dialog.pick_folder() {
+                            // save_path.push(path.name().unwrap_or("archive"));
+                            println!("Extract directory to {:?}", save_path);
+                            directory.save(save_path).expect("Failed to save directory");
+                        }
+                    }
+                }
+
+            }
+        });
+
+    }
 }
 
 impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for VirtualFsExplorer<F, I> {
@@ -118,8 +172,6 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for Virt
     fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
         self.update_loaded_icons(ui.ctx());
 
-        let mut selected_directory: Option<VirtualFsDirectory<F, I>> = None;
-        
         let view_entries = self.view_directory.entries().collect::<Result<Vec<_>>>().map(|view_entries| {
             if self.search.len() > 0 {
                 view_entries.into_iter().filter(|entry| {
@@ -157,9 +209,9 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for Virt
                         if ui.button("Back").clicked() {
                             if let Some(parent) = parent {
                                 if let Ok(VirtualFsEntry::Directory(directory)) = self.fs.read(parent) {
-                                    selected_directory = Some(directory);
+                                    self.new_view_directory = Some(directory);
                                 } else {
-                                    selected_directory = Some(self.fs.root().unwrap()); // Fallback
+                                    self.new_view_directory = Some(self.fs.root().unwrap()); // Fallback
                                 }
                             }
                         }
@@ -182,9 +234,9 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for Virt
                 
                                 if ui.button(name).clicked() {
                                     if let Ok(VirtualFsEntry::Directory(directory)) = self.fs.read(path) {
-                                        selected_directory = Some(directory);
+                                        self.new_view_directory = Some(directory);
                                     } else {
-                                        selected_directory = Some(self.fs.root().unwrap()); // Fallback
+                                        self.new_view_directory = Some(self.fs.root().unwrap()); // Fallback
                                     }
                                 }
                             }
@@ -236,23 +288,7 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for Virt
                                         EntryDisplay::SIZE + GRID_SPACING,
                                         egui::Layout::top_down(egui::Align::Center),
                                         |ui| {
-                                            let path = entry.path().clone();
-                                            let name = path.name().unwrap_or("Error");
-                                            let icon = self.get_icon(&entry);
-
-                                            match entry {
-                                                VirtualFsEntry::Directory(directory) => {
-                                                    if ui.add(EntryDisplay::new(name, icon.as_ref())).clicked() {
-                                                        selected_directory = Some(directory);
-                                                    }
-                                                },
-                                                VirtualFsEntry::File(file) => {
-                                                    if ui.add(EntryDisplay::new(name, icon.as_ref())).clicked() {
-                                                        let name = file.path().name().map(|s| s.to_owned());
-                                                        self.app_context.open_file(file, name).unwrap();
-                                                    }
-                                                },
-                                            }
+                                            self.entry_display(ui, entry);
                                         }
                                     );
                                     if (i + 1) % num_columns == 0 {
@@ -271,8 +307,8 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for Virt
                 
             });
 
-        if let Some(selected_directory) = selected_directory {
-            self.view_directory = selected_directory;
+        if let Some(new_view_directory) = self.new_view_directory.take() {
+            self.view_directory = new_view_directory;
             self.search.clear();
         }
 

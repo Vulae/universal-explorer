@@ -21,7 +21,6 @@ where
             },
             VirtualFsEntry::Directory(directory) => {
                 let name = directory.path().name().unwrap_or(root_name);
-                let mut directory = directory.clone();
                 let entries_iter = directory.entries();
                 ui.menu_button(name, |ui| {
                     for entry in entries_iter {
