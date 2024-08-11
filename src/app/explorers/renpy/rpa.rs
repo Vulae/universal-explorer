@@ -10,7 +10,7 @@ pub struct RenPyArchiveExplorer<F: Read + Seek> {
     explorer: VirtualFsExplorer<InnerFile<F>, RenPyArchive<F>>,
 }
 
-impl<F: Read + Seek> RenPyArchiveExplorer<F> {
+impl<F: Read + Seek + 'static> RenPyArchiveExplorer<F> {
     pub fn new(app_context: SharedAppContext, rpa: RenPyArchive<F>, name: Option<String>) -> Result<Self> {
         Ok(RenPyArchiveExplorer {
             explorer: VirtualFsExplorer::new(
@@ -47,7 +47,7 @@ impl RenPyArchiveExplorer<File> {
     }
 }
 
-impl<F: Read + Seek> Explorer for RenPyArchiveExplorer<F> {
+impl<F: Read + Seek + 'static> Explorer for RenPyArchiveExplorer<F> {
     fn uuid(&self) -> Uuid {
         self.explorer.uuid()
     }

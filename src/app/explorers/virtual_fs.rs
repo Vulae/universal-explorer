@@ -1,5 +1,5 @@
 
-use std::{collections::HashMap, io::{Read, Seek}};
+use std::{collections::HashMap, io::{Read, Seek}, sync::{Arc, Mutex}};
 use crate::{app::{Explorer, SharedAppContext}, util::virtual_fs::{FullPath, VirtualFs, VirtualFsDirectory, VirtualFsEntry, VirtualFsInner}};
 use anyhow::Result;
 use uuid::Uuid;
@@ -18,14 +18,18 @@ pub struct VirtualFsExplorer<F: Read + Seek, I: VirtualFsInner<F>> {
     app_context: SharedAppContext,
     options: VirtualFsExplorerOptions,
     uuid: Uuid,
+
     fs: VirtualFs<F, I>,
     view_directory: VirtualFsDirectory<F, I>,
+
     search: String,
+
     cached_icons: HashMap<FullPath, Option<egui::ImageSource<'static>>>,
     cached_icon_handles: Vec<egui::TextureHandle>,
+    load_icons: Arc<Mutex<Vec<(FullPath, crate::app::loader::LoadedThumbnail)>>>,
 }
 
-impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsExplorer<F, I> {
+impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer<F, I> {
     pub fn new(app_context: SharedAppContext, mut fs: VirtualFs<F, I>, options: VirtualFsExplorerOptions) -> Result<Self> {
         let view_directory = fs.root()?;
         Ok(Self {
@@ -37,11 +41,72 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> VirtualFsExplorer<F, I> {
             search: String::new(),
             cached_icons: HashMap::new(),
             cached_icon_handles: Vec::new(),
+            load_icons: Arc::new(Mutex::new(Vec::new())),
         })
+    }
+
+    fn update_loaded_icons(&mut self, ctx: &egui::Context) {
+        let mut load_icons = self.load_icons.lock().unwrap();
+
+        while let Some((path, icon)) = load_icons.pop() {
+            match icon {
+                crate::app::loader::LoadedThumbnail::None => {
+                    self.cached_icons.insert(path, None);
+                },
+                crate::app::loader::LoadedThumbnail::Image(image) => {
+                    let handle = crate::util::image::image_egui_handle(&image, ctx);
+                    let source = egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&handle));
+                    self.cached_icon_handles.push(handle);
+                    self.cached_icons.insert(path, Some(source));
+                },
+                crate::app::loader::LoadedThumbnail::ImageSource(source) => {
+                    self.cached_icons.insert(path, Some(source));
+                },
+            }
+        }
+    }
+
+    fn get_icon(&mut self, entry: &VirtualFsEntry<F, I>) -> Option<egui::ImageSource> {
+        let hint = crate::util::image::SizeHint::Pixels((EntryDisplay::THUMBNAIL_SIZE.x * EntryDisplay::THUMBNAIL_SIZE.y * 1.5) as u64);
+        let path = entry.path().clone();
+
+        if let Some(cached_icon) = self.cached_icons.get(&path) {
+            return cached_icon.clone().or(Some(crate::app::assets::LUCIDE_FILE));
+        }
+
+        self.cached_icons.insert(path.clone(), None);
+
+        match entry {
+            VirtualFsEntry::Directory(_) => {
+                self.load_icons.lock().unwrap().push((path, crate::app::loader::LoadedThumbnail::ImageSource(crate::app::assets::LUCIDE_FOLDER)));
+            },
+            VirtualFsEntry::File(file) => {
+                let name = file.path().name().map(|s| s.to_owned());
+                let threaded_file = crate::util::file::ThreadedFile::new(Arc::new(Mutex::new(file.clone())));
+                let load_icons = Arc::clone(&self.load_icons);
+                std::thread::spawn(move || {
+                    // TODO: Use multiple threads to load thumbnails.
+                    match crate::app::loader::thumbnail_file(
+                        threaded_file,
+                        name,
+                        hint,
+                    ) {
+                        Ok(thumbnail) => {
+                            load_icons.lock().unwrap().push((path, thumbnail));
+                        },
+                        Err(err) => {
+                            println!("Failed to load icon {}", err);
+                        },
+                    }
+                });
+            },
+        }
+
+        None
     }
 }
 
-impl<F: Read + Seek, I: VirtualFsInner<F>> Explorer for VirtualFsExplorer<F, I> {
+impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for VirtualFsExplorer<F, I> {
     fn uuid(&self) -> Uuid {
         self.uuid
     }
@@ -51,6 +116,7 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> Explorer for VirtualFsExplorer<F, I> 
     }
 
     fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
+        self.update_loaded_icons(ui.ctx());
 
         let mut selected_directory: Option<VirtualFsDirectory<F, I>> = None;
         
@@ -170,37 +236,17 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> Explorer for VirtualFsExplorer<F, I> 
                                         EntryDisplay::SIZE + GRID_SPACING,
                                         egui::Layout::top_down(egui::Align::Center),
                                         |ui| {
+                                            let path = entry.path().clone();
+                                            let name = path.name().unwrap_or("Error");
+                                            let icon = self.get_icon(&entry);
+
                                             match entry {
                                                 VirtualFsEntry::Directory(directory) => {
-                                                    let name = directory.path().name().unwrap_or("Error");
-                                                    if ui.add(EntryDisplay::new(name, Some(&crate::app::assets::LUCIDE_FOLDER))).clicked() {
+                                                    if ui.add(EntryDisplay::new(name, icon.as_ref())).clicked() {
                                                         selected_directory = Some(directory);
                                                     }
                                                 },
                                                 VirtualFsEntry::File(file) => {
-                                                    let name = file.path().name().unwrap_or("Error");
-
-                                                    // TODO: This can probably be cleaned up using self.cached_icons.get_mut().get_or_insert_with()
-                                                    // TODO: Use multiple threads to load thumbnails.
-                                                    if !self.cached_icons.contains_key(file.path()) {
-                                                        if let Ok(Some((icon, handle))) = crate::app::loader::thumbnail_file(
-                                                            file.clone(),
-                                                            file.path().name().map(|s| s.to_owned()),
-                                                            ui.ctx(),
-                                                            crate::util::image::SizeHint::Pixels((EntryDisplay::THUMBNAIL_SIZE.x * EntryDisplay::THUMBNAIL_SIZE.y * 1.5) as u64),
-                                                        ) {
-                                                            self.cached_icons.insert(file.path().clone(), Some(icon));
-                                                            if let Some(handle) = handle {
-                                                                self.cached_icon_handles.push(handle);
-                                                            }
-                                                        } else {
-                                                            self.cached_icons.insert(file.path().clone(), None);
-                                                        }
-                                                    }
-
-                                                    let icon = self.cached_icons.get(file.path()).unwrap().clone()
-                                                        .or(Some(crate::app::assets::LUCIDE_FILE));
-
                                                     if ui.add(EntryDisplay::new(name, icon.as_ref())).clicked() {
                                                         let name = file.path().name().map(|s| s.to_owned());
                                                         self.app_context.open_file(file, name).unwrap();
@@ -229,6 +275,11 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> Explorer for VirtualFsExplorer<F, I> 
             self.view_directory = selected_directory;
             self.search.clear();
         }
+
+        // FIXME: Don't render continuously!
+        // Because the loading of thumbnails is multithreaded,
+        // Some thumbnails may be fully loaded but not yet rendered until the user interacts.
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
 
         Ok(())
     }

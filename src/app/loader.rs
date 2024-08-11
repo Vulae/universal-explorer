@@ -50,14 +50,15 @@ pub fn open<P: AsRef<Path>>(app_context: SharedAppContext, path: P) -> Result<Op
 
 
 
-fn image_source(image: image::DynamicImage, ctx: &egui::Context, hint: SizeHint) -> (egui::ImageSource<'static>, Option<egui::TextureHandle>) {
-    let image = hint.downscale_image(image, image::imageops::FilterType::Nearest);
-    let handle = crate::util::image::image_egui_handle(&image, ctx);
-    let source = egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&handle));
-    (source, Some(handle))
+pub enum LoadedThumbnail {
+    None,
+    Image(image::DynamicImage),
+    ImageSource(egui::ImageSource<'static>),
 }
 
-pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, ctx: &egui::Context, hint: SizeHint) -> Result<Option<(egui::ImageSource<'static>, Option<egui::TextureHandle>)>> {
+const DEFAULT_DOWNSCALE_FILTER: image::imageops::FilterType = image::imageops::FilterType::Nearest;
+
+pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, hint: SizeHint) -> Result<LoadedThumbnail> {
     file.rewind()?;
     let file_size = FileSize::from_file(&mut file)?;
 
@@ -65,24 +66,24 @@ pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, ctx:
         if let Ok(_) = image::ImageFormat::from_path(filename) {
             if file_size < FileSize::from_mebibytes(3) {
                 if let Ok(image) = image::ImageReader::new(std::io::BufReader::new(&mut file)).with_guessed_format()?.decode() {
-                    return Ok(Some(image_source(image, ctx, hint)));
+                    return Ok(LoadedThumbnail::Image(hint.downscale_image(image, DEFAULT_DOWNSCALE_FILTER)));
                 }
             }
 
-            return Ok(Some((crate::app::assets::LUCIDE_FILE_IMAGE, None)));
+            return Ok(LoadedThumbnail::ImageSource(crate::app::assets::LUCIDE_FILE_IMAGE));
         }
 
         if filename.ends_with(".vtf") {
             if let Ok(Some(texture)) = crate::explorers::source_engine::vtf::Vtf::load_thumbnail(file, hint) {
-                return Ok(Some(image_source(texture.to_image(), ctx, hint)));
+                return Ok(LoadedThumbnail::Image(hint.downscale_image(texture.to_image(), DEFAULT_DOWNSCALE_FILTER)));
             }
 
-            return Ok(Some((crate::app::assets::LUCIDE_FILE_IMAGE, None)));
+            return Ok(LoadedThumbnail::ImageSource(crate::app::assets::LUCIDE_FILE_IMAGE));
         }
 
     }
 
-    Ok(None)
+    Ok(LoadedThumbnail::None)
 }
 
 

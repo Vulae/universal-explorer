@@ -10,7 +10,7 @@ pub struct VpkExplorer<F: Read + Seek> {
     explorer: VirtualFsExplorer<VpkFile<F>, VpkArchive<F>>,
 }
 
-impl<F: Read + Seek> VpkExplorer<F> {
+impl<F: Read + Seek + 'static> VpkExplorer<F> {
     pub fn new(app_context: SharedAppContext, vpk: VpkArchive<F>, name: Option<String>) -> Result<VpkExplorer<F>> {
         Ok(VpkExplorer {
             explorer: VirtualFsExplorer::new(
@@ -39,7 +39,7 @@ impl VpkExplorer<File> {
     }
 }
 
-impl<F: Read + Seek> Explorer for VpkExplorer<F> {
+impl<F: Read + Seek + 'static> Explorer for VpkExplorer<F> {
     fn uuid(&self) -> Uuid {
         self.explorer.uuid()
     }
