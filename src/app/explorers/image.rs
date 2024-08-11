@@ -26,15 +26,17 @@ impl ImageExplorer {
 
     pub fn file<F: Read + Seek>(mut file: F, filename: Option<String>) -> Result<ImageExplorer> {
         file.rewind()?;
-        let image: DynamicImage = match &filename {
-            Some(filename) => image::ImageReader::with_format(
-                BufReader::new(file),
-                image::ImageFormat::from_path(filename)?,
-            ).decode()?,
-            None => image::ImageReader::new(BufReader::new(file))
-                .with_guessed_format()?
-                .decode()?,
-        };
+
+        let mut decoder = image::ImageReader::new(BufReader::new(file));
+        // if let Some(filename) = &filename {
+        //     decoder.set_format(image::ImageFormat::from_path(filename)?);
+        // } else {
+        //     decoder = decoder.with_guessed_format()?;
+        // }
+        decoder = decoder.with_guessed_format()?;
+
+        let image = decoder.decode()?;
+
         Ok(ImageExplorer::new(
             image,
             filename.map(|f| crate::util::file::filename(&f)).flatten(),

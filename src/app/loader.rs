@@ -57,15 +57,14 @@ fn image_source(image: image::DynamicImage, ctx: &egui::Context, hint: SizeHint)
     (source, Some(handle))
 }
 
-#[cfg_attr(debug_assertions, allow(unused))]
 pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, ctx: &egui::Context, hint: SizeHint) -> Result<Option<(egui::ImageSource<'static>, Option<egui::TextureHandle>)>> {
+    file.rewind()?;
     let file_size = FileSize::from_file(&mut file)?;
 
     if let Some(filename) = &filename {
-        if let Ok(format) = image::ImageFormat::from_path(filename) {
-            // #[cfg(not(debug_assertions))] // Decoding images is VERY slow on debug build.
+        if let Ok(_) = image::ImageFormat::from_path(filename) {
             if file_size < FileSize::from_mebibytes(3) {
-                if let Ok(image) = image::ImageReader::with_format(std::io::BufReader::new(&mut file), format).decode() {
+                if let Ok(image) = image::ImageReader::new(std::io::BufReader::new(&mut file)).with_guessed_format()?.decode() {
                     return Ok(Some(image_source(image, ctx, hint)));
                 }
             }
