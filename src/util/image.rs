@@ -179,10 +179,10 @@ impl SizeHint {
     /// Downscale image to SizeHint::rescale size.
     /// 
     /// If size is already smaller than the new downscale size, will return original image.
-    pub fn downscale_image(&self, image: DynamicImage) -> DynamicImage {
+    pub fn downscale_image(&self, image: DynamicImage, filter: image::imageops::FilterType) -> DynamicImage {
         let (new_width, new_height) = self.rescale(image.width(), image.height());
         if new_width < image.width() || new_height < image.height() {
-            image.resize_exact(new_width, new_height, image::imageops::FilterType::Lanczos3)
+            image.resize_exact(new_width, new_height, filter)
         } else {
             image
         }

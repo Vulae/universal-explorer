@@ -51,7 +51,7 @@ pub fn open<P: AsRef<Path>>(app_context: SharedAppContext, path: P) -> Result<Op
 
 
 fn image_source(image: image::DynamicImage, ctx: &egui::Context, hint: SizeHint) -> (egui::ImageSource<'static>, Option<egui::TextureHandle>) {
-    let image = hint.downscale_image(image);
+    let image = hint.downscale_image(image, image::imageops::FilterType::Nearest);
     let handle = crate::util::image::image_egui_handle(&image, ctx);
     let source = egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&handle));
     (source, Some(handle))
@@ -63,8 +63,8 @@ pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, ctx:
 
     if let Some(filename) = &filename {
         if let Ok(format) = image::ImageFormat::from_path(filename) {
-            #[cfg(not(debug_assertions))] // Decoding images is VERY slow on debug build.
-            if file_size < FileSize::from_mebibytes(1) {
+            // #[cfg(not(debug_assertions))] // Decoding images is VERY slow on debug build.
+            if file_size < FileSize::from_mebibytes(3) {
                 if let Ok(image) = image::ImageReader::with_format(std::io::BufReader::new(&mut file), format).decode() {
                     return Some(image_source(image, ctx, hint));
                 }
