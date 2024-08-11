@@ -388,9 +388,185 @@ impl Vtf {
 
 
 
-    pub fn load(data: impl Read + Seek) -> Result<Vtf> {
+    pub fn load(mut data: impl Read + Seek) -> Result<Vtf> {
+        data.rewind()?;
+        let header = VtfHeader::load(&mut data)?;
+
+        let mut thumbnail = None;
+        if let Some(lowres_offset) = header.lowres_offset {
+            data.seek(std::io::SeekFrom::Start(lowres_offset as u64))?;
+            thumbnail = Vtf::read_thumbnail(&mut data, header.lowres_format, header.lowres_width as u32, header.lowres_height as u32)?;
+        }
+        data.seek(std::io::SeekFrom::Start(header.highres_offset as u64))?;
+        let textures = Vtf::read_textures(&mut data, header.highres_format, header.width as u32, header.height as u32, header.mipmaps as u32, header.frames as u32, header.faces as u32, header.slices as u32)?;
+
+        Ok(Vtf {
+            format: header.highres_format,
+            width: header.width as u32,
+            height: header.height as u32,
+            thumbnail,
+            mipmaps: header.mipmaps,
+            frames: header.frames,
+            first_frame: header.first_frame,
+            faces: header.faces,
+            slices: header.slices,
+            textures,
+        })
+    }
+
+    fn read_texture(mut data: impl Read, format: TextureFormat, width: u32, height: u32) -> Result<VtfTexture> {
+        let size = format.texture_byte_size(width, height);
+        let mut buf = vec![0u8; size as usize];
+        data.read(&mut buf)?;
+        Ok(VtfTexture::new(width, height, format, &buf))
+    }
+
+    fn read_thumbnail(data: impl Read, format: TextureFormat, width: u32, height: u32) -> Result<Option<VtfTexture>> {
+        let size = format.texture_byte_size(width, height);
+        if size > 0 {
+            Ok(Some(Vtf::read_texture(data, format, width, height)?))
+        } else { Ok(None) }
+    }
+
+    fn read_textures(
+        mut data: impl Read,
+        format: TextureFormat,
+        width: u32, height: u32,
+        mipmaps: u32, frames: u32, faces: u32, slices: u32,
+    ) -> Result<Vec<VtfTexture>> {
+        let mut textures: Vec<VtfTexture> = Vec::new();
+        for mipmap in (0..mipmaps).rev() {
+            let mip_width = (width >> mipmap).max(1);
+            let mip_height = (height >> mipmap).max(1);
+            for _frame in 0..frames {
+                for _face in 0..faces {
+                    for _slice in 0..slices {
+                        textures.push(Vtf::read_texture(&mut data, format, mip_width, mip_height)?);
+                    }
+                }
+            }
+        }
+        Ok(textures)
+    }
+
+    fn read_specific_texture(
+        mut data: impl Read + Seek,
+        format: TextureFormat,
+        width: u32, height: u32,
+        mipmaps: u32, frames: u32, faces: u32, slices: u32,
+        target_mipmap: u32, target_frame: u32, target_face: u32, target_slice: u32,
+    ) -> Result<VtfTexture> {
+        let mut offset: u64 = 0;
+        for mipmap in (0..mipmaps).rev() {
+            let mip_width = (width >> mipmap).max(1);
+            let mip_height = (height >> mipmap).max(1);
+            for frame in 0..frames {
+                for face in 0..faces {
+                    for slice in 0..slices {
+                        let size = format.texture_byte_size(mip_width, mip_height);
+
+                        if mipmap != target_mipmap || frame != target_frame || face != target_face || slice != target_slice {
+                            offset += size;
+                            continue;
+                        }
+                        
+                        data.seek_relative(offset as i64)?;
+                        return Ok(Vtf::read_texture(&mut data, format, mip_width, mip_height)?);
+                    }
+                }
+            }
+        }
+        Err(anyhow!("Failed to read specific texture"))
+    }
+
+
+
+    pub fn load_thumbnail(mut data: impl Read + Seek, hint: SizeHint) -> Result<Option<VtfTexture>> {
+        data.rewind()?;
+        if let Ok(header) = VtfHeader::load(&mut data) {
+
+            let mut mipmap = 0;
+            while mipmap < header.mipmaps {
+                if hint.satisfies((header.width as u32) >> mipmap, (header.height as u32) >> mipmap) {
+                    if mipmap > 0 {
+                        // Go to previous mipmap so scaling is a bit more clean.
+                        mipmap -= 1;
+                    }
+                    break;
+                }
+                mipmap += 1;
+            }
+
+            data.seek(std::io::SeekFrom::Start(header.highres_offset as u64))?;
+            Ok(Some(Vtf::read_specific_texture(
+                data,
+                header.highres_format,
+                header.width as u32, header.height as u32,
+                header.mipmaps as u32, header.frames as u32, header.faces as u32, header.slices as u32,
+                mipmap as u32, 0, 0, 0,
+            )?))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+
+
+
+
+enum VtfResource {
+    Unknown([u8; 3], u8, u32),
+    LowRes(u32),
+    HighRes(u32),
+}
+
+impl VtfResource {
+    pub fn lowres_offset(&self) -> Option<u32> {
+        if let VtfResource::LowRes(offset) = self {
+            Some(*offset)
+        } else {
+            None
+        }
+    }
+    pub fn highres_offset(&self) -> Option<u32> {
+        if let VtfResource::HighRes(offset) = self {
+            Some(*offset)
+        } else {
+            None
+        }
+    }
+}
+
+
+
+struct VtfHeader {
+    version: [u32; 2],
+    header_size: u32,
+    width: u16,
+    height: u16,
+    flags: TextureFlags,
+    frames: u16,
+    first_frame: u16,
+    reflectivity: [f32; 3],
+    bumpmap_scale: f32,
+    highres_format: TextureFormat,
+    mipmaps: u8,
+    faces: u8,
+    lowres_format: TextureFormat,
+    lowres_width: u8,
+    lowres_height: u8,
+    slices: u16,
+
+    is_resource_format: bool,
+    resources: Vec<VtfResource>,
+    highres_offset: u32,
+    lowres_offset: Option<u32>,
+}
+
+impl VtfHeader {
+    pub fn load(data: impl Read) -> Result<VtfHeader> {
         let mut reader = crate::util::reader::Reader::new_le(data);
-        reader.rewind()?;
 
         if &reader.read::<[u8; 4]>()? != b"VTF\0" {
             return Err(anyhow!("Invalid VTF identifier"));
@@ -403,9 +579,9 @@ impl Vtf {
         let frames = reader.read::<u16>()?;
         let mut first_frame = reader.read::<u16>()?;
         reader.skip(4)?;
-        let _reflectivity = reader.read::<[f32; 3]>()?;
+        let reflectivity = reader.read::<[f32; 3]>()?;
         reader.skip(4)?;
-        let _bumpmap_scale = reader.read::<f32>()?;
+        let bumpmap_scale = reader.read::<f32>()?;
         let highres_format = TextureFormat::try_from(reader.read::<i32>()?)?.fix(&flags);
         let mipmaps = reader.read::<u8>()?;
         let faces = if flags.intersects(TextureFlags::ENVMAP) {
@@ -414,122 +590,77 @@ impl Vtf {
                 7
             } else { 6 }
         } else { 1 };
-        let thumbnail_format = TextureFormat::try_from(reader.read::<i32>()?)?.fix(&flags);
-        let thumbnail_width = reader.read::<u8>()?;
-        let thumbnail_height = reader.read::<u8>()?;
+        let lowres_format = TextureFormat::try_from(reader.read::<i32>()?)?.fix(&flags);
+        let lowres_width = reader.read::<u8>()?;
+        let lowres_height = reader.read::<u8>()?;
         let slices: u16 = if version > [7, 2] { reader.read()? } else { 1 };
 
-        let thumbnail: Option<VtfTexture>;
-        let textures: Vec<VtfTexture>;
-
+        let is_resource_format: bool;
+        let mut resources: Vec<VtfResource> = Vec::new();
+        let highres_offset: u32;
+        let mut lowres_offset: Option<u32> = None;
         if version < [7, 3] {
-            // Non-resource format
-            reader.seek(std::io::SeekFrom::Start(header_size as u64))?;
-            thumbnail = Vtf::read_thumbnail(&mut reader.data, thumbnail_format, thumbnail_width as u32, thumbnail_height as u32)?;
-            textures = Vtf::read_textures(&mut reader.data, highres_format, width as u32, height as u32, mipmaps as u32, frames as u32, faces as u32, slices as u32)?;
+            is_resource_format = false;
+
+            let mut offset = header_size;
+
+            let lowres_size = lowres_format.texture_byte_size(lowres_width as u32, lowres_height as u32);
+            if lowres_size > 0 {
+                lowres_offset = Some(offset);
+                offset += lowres_size as u32;
+            }
+
+            highres_offset = offset;
+
         } else {
-            // Resource format
+            is_resource_format = true;
+
             reader.skip(3)?;
             let num_resources = reader.read::<u32>()?;
             reader.skip(8)?;
 
-            struct Resource {
-                tag: [u8; 3],
-                flags: u8,
-                offset: u32,
+            for _ in 0..num_resources {
+                let tag = reader.read::<[u8; 3]>()?;
+                let flags = reader.read::<u8>()?;
+                let offset = reader.read::<u32>()?;
+
+                resources.push(match &tag {
+                    b"\x01\0\0" => VtfResource::LowRes(offset),
+                    b"\x30\0\0" => VtfResource::HighRes(offset),
+                    _ => VtfResource::Unknown(tag, flags, offset),
+                });
             }
 
-            let resources: Vec<Resource> = (0..num_resources).map(|_| {
-                Ok(Resource { tag: reader.read()?, flags: reader.read()?, offset: reader.read()? })
-            }).collect::<Result<Vec<_>>>()?;
-
-            if let Some(thumbnail_resource) = resources.iter().find(|resource| &resource.tag == b"\x01\0\0") {
-                reader.seek(std::io::SeekFrom::Start(thumbnail_resource.offset as u64))?;
-                thumbnail = Vtf::read_thumbnail(&mut reader.data, thumbnail_format, thumbnail_width as u32, thumbnail_height as u32)?;
-            } else {
-                thumbnail = None;
+            if let Some(resource_lowres) = resources.iter().find(|r| r.lowres_offset().is_some()) {
+                lowres_offset = resource_lowres.lowres_offset();
             }
 
-            if let Some(textures_resource) = resources.iter().find(|resource| &resource.tag == b"\x30\0\0") {
-                reader.seek(std::io::SeekFrom::Start(textures_resource.offset as u64))?;
-                textures = Vtf::read_textures(&mut reader.data, highres_format, width as u32, height as u32, mipmaps as u32, frames as u32, faces as u32, slices as u32)?;
-            } else {
-                return Err(anyhow!("VTF has no texture data"));
-            }
+            let resource_highres = resources.iter().find(|r| r.highres_offset().is_some()).ok_or(anyhow!("VTF texture does not have highres image data."))?;
+            highres_offset = resource_highres.highres_offset().unwrap();
         }
 
-        Ok(Vtf {
-            format: highres_format,
-            width: width as u32,
-            height: height as u32,
-            thumbnail,
-            mipmaps,
+        Ok(VtfHeader {
+            version,
+            header_size,
+            width,
+            height,
+            flags,
             frames,
             first_frame,
+            reflectivity,
+            bumpmap_scale,
+            highres_format,
+            mipmaps,
             faces,
+            lowres_format,
+            lowres_width,
+            lowres_height,
             slices,
-            textures,
+            is_resource_format,
+            resources,
+            highres_offset,
+            lowres_offset,
         })
-    }
-
-    fn read_thumbnail(mut data: impl Read + Seek, format: TextureFormat, width: u32, height: u32) -> Result<Option<VtfTexture>> {
-        let size = format.texture_byte_size(width, height);
-        let mut buf = vec![0u8; size as usize];
-        data.read(&mut buf)?;
-        if size > 0 {
-            Ok(Some(VtfTexture::new(
-                width,
-                height,
-                format,
-                &buf,
-            )))
-        } else { Ok(None) }
-    }
-
-    fn read_textures(mut data: impl Read + Seek, format: TextureFormat, width: u32, height: u32, mipmaps: u32, frames: u32, faces: u32, slices: u32) -> Result<Vec<VtfTexture>> {
-        let mut textures: Vec<VtfTexture> = Vec::new();
-        for mipmap in (0..mipmaps).rev() {
-            for _frame in 0..frames {
-                for _face in 0..faces {
-                    for _slice in 0..slices {
-                        let mip_width = (width >> mipmap).max(1);
-                        let mip_height = (height >> mipmap).max(1);
-                        let size = format.texture_byte_size(mip_width as u32, mip_height as u32);
-                        let mut buf = vec![0u8; size as usize];
-                        data.read(&mut buf)?;
-                        textures.push(VtfTexture::new(
-                            mip_width as u32,
-                            mip_height as u32,
-                            format,
-                            &buf,
-                        ));
-                    }
-                }
-            }
-        }
-        Ok(textures)
-    }
-
-
-
-    pub fn load_thumbnail(data: impl Read + Seek, hint: SizeHint) -> Option<VtfTexture> {
-        // TEMP: We're just loading the whole vtf for now.
-        if let Ok(vtf) = Vtf::load(data) {
-            let mut mipmap = 0;
-            while mipmap < vtf.mipmaps() {
-                if hint.satisfies(vtf.width() >> mipmap, vtf.height() >> mipmap) {
-                    if mipmap > 0 {
-                        // Go to previous mipmap so scaling is a bit more clean.
-                        mipmap -= 1;
-                    }
-                    break;
-                }
-                mipmap += 1;
-            }
-            vtf.into_texture(mipmap, 0, 0, 0)
-        } else {
-            None
-        }
     }
 }
 

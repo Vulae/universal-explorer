@@ -58,32 +58,32 @@ fn image_source(image: image::DynamicImage, ctx: &egui::Context, hint: SizeHint)
 }
 
 #[cfg_attr(debug_assertions, allow(unused))]
-pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, ctx: &egui::Context, hint: SizeHint) -> Option<(egui::ImageSource<'static>, Option<egui::TextureHandle>)> {
-    let file_size = FileSize::from_file(&mut file).ok()?;
+pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, ctx: &egui::Context, hint: SizeHint) -> Result<Option<(egui::ImageSource<'static>, Option<egui::TextureHandle>)>> {
+    let file_size = FileSize::from_file(&mut file)?;
 
     if let Some(filename) = &filename {
         if let Ok(format) = image::ImageFormat::from_path(filename) {
             // #[cfg(not(debug_assertions))] // Decoding images is VERY slow on debug build.
             if file_size < FileSize::from_mebibytes(3) {
                 if let Ok(image) = image::ImageReader::with_format(std::io::BufReader::new(&mut file), format).decode() {
-                    return Some(image_source(image, ctx, hint));
+                    return Ok(Some(image_source(image, ctx, hint)));
                 }
             }
 
-            return Some((crate::app::assets::LUCIDE_FILE_IMAGE, None));
+            return Ok(Some((crate::app::assets::LUCIDE_FILE_IMAGE, None)));
         }
 
         if filename.ends_with(".vtf") {
-            if let Some(texture) = crate::explorers::source_engine::vtf::Vtf::load_thumbnail(file, hint) {
-                return Some(image_source(texture.to_image(), ctx, hint));
+            if let Ok(Some(texture)) = crate::explorers::source_engine::vtf::Vtf::load_thumbnail(file, hint) {
+                return Ok(Some(image_source(texture.to_image(), ctx, hint)));
             }
 
-            return Some((crate::app::assets::LUCIDE_FILE_IMAGE, None));
+            return Ok(Some((crate::app::assets::LUCIDE_FILE_IMAGE, None)));
         }
 
     }
 
-    None
+    Ok(None)
 }
 
 

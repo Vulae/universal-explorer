@@ -183,7 +183,7 @@ impl<F: Read + Seek, I: VirtualFsInner<F>> Explorer for VirtualFsExplorer<F, I> 
                                                     // TODO: This can probably be cleaned up using self.cached_icons.get_mut().get_or_insert_with()
                                                     // TODO: Use multiple threads to load thumbnails.
                                                     if !self.cached_icons.contains_key(file.path()) {
-                                                        if let Some((icon, handle)) = crate::app::loader::thumbnail_file(
+                                                        if let Ok(Some((icon, handle))) = crate::app::loader::thumbnail_file(
                                                             file.clone(),
                                                             file.path().name().map(|s| s.to_owned()),
                                                             ui.ctx(),
