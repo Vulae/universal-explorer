@@ -6,6 +6,7 @@ pub mod egui;
 pub mod virtual_fs;
 pub mod pickle;
 pub mod file;
+pub mod tree_fs;
 
 use std::num::ParseIntError;
 

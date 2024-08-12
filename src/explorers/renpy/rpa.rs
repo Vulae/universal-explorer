@@ -2,78 +2,18 @@
 use std::{collections::HashMap, io::{Read, Seek}, sync::{Arc, Mutex}};
 use anyhow::{anyhow, Result};
 use itertools::Itertools;
-use crate::util::file::InnerFile;
-
-
-
-enum RpaNode<F: Read + Seek> {
-    File(InnerFile<F>),
-    Directory(Vec<(String, RpaNode<F>)>),
-}
-
-impl<F: Read + Seek> RpaNode<F> {
-    fn set(&mut self, path: String, file: InnerFile<F>) -> Result<()> {
-        let mut components = path.split('/').peekable();
-
-        // Recursively navigate to the correct node
-        fn set_recursive<F: Read + Seek>(
-            node: &mut RpaNode<F>,
-            components: &mut std::iter::Peekable<std::str::Split<'_, char>>,
-            file: InnerFile<F>,
-        ) -> Result<()> {
-            if let Some(component) = components.next() {
-                match node {
-                    RpaNode::Directory(ref mut children) => {
-                        if components.peek().is_none() {
-                            // We've reached the final component, insert the file here
-                            children.push((component.to_string(), RpaNode::File(file)));
-                            Ok(())
-                        } else {
-                            // Navigate deeper into the directory tree
-                            for (name, child) in children.iter_mut() {
-                                if let RpaNode::Directory(_) = child {
-                                    if name == component {
-                                        return set_recursive(child, components, file);
-                                    }
-                                }
-                            }
-                            // If the directory does not exist, create it
-                            let mut new_dir = RpaNode::Directory(Vec::new());
-                            let result = set_recursive(&mut new_dir, components, file);
-                            children.push((component.to_string(), new_dir));
-                            result
-                        }
-                    }
-                    _ => Err(anyhow!("Path does not match a directory")),
-                }
-            } else {
-                Err(anyhow!("Invalid path"))
-            }
-        }
-
-        set_recursive(self, &mut components, file)
-    }
-
-    fn from_entries(entries: Vec<(String, InnerFile<F>)>) -> Result<Self> {
-        let mut root = RpaNode::Directory(Vec::new());
-        for (path, file) in entries {
-            root.set(path, file)?;
-        }
-
-        Ok(root)
-    }
-}
+use crate::util::{file::InnerFile, tree_fs::TreeFs};
 
 
 
 pub struct RenPyArchive<F: Read + Seek> {
-    node: RpaNode<F>,
+    fs: TreeFs<InnerFile<F>>,
 }
 
 impl<F: Read + Seek> RenPyArchive<F> {
     pub fn new(entries: Vec<(String, InnerFile<F>)>) -> Result<Self> {
         Ok(RenPyArchive {
-            node: RpaNode::from_entries(entries)?,
+            fs: TreeFs::new(entries)?,
         })
     }
 
@@ -141,22 +81,7 @@ impl<F: Read + Seek> RenPyArchive<F> {
 
 impl<F: Read + Seek> crate::util::virtual_fs::VirtualFsInner<InnerFile<F>> for RenPyArchive<F> {
     fn read(&mut self, path: &str) -> Result<crate::util::virtual_fs::VirtualFsInnerEntry<InnerFile<F>>> {
-        let mut components = path.split('/');
-
-        let mut current = &self.node;
-        while let Some(component) = components.next() {
-            if component.is_empty() { continue; }
-            if let RpaNode::Directory(entries) = current {
-                current = &entries.iter().find(|(name, _)| name == component).unwrap().1;
-            } else {
-                return Err(anyhow!("Failed to read VPK file from tree"));
-            }
-        }
-
-        Ok(match current {
-            RpaNode::File(file) => crate::util::virtual_fs::VirtualFsInnerEntry::File(file.clone()),
-            RpaNode::Directory(entries) => crate::util::virtual_fs::VirtualFsInnerEntry::Directory(entries.iter().map(|e| e.0.clone()).collect::<Vec<_>>()),
-        })
+        self.fs.read(path)
     }
 }
 

@@ -35,6 +35,9 @@ pub fn open<P: AsRef<Path>>(app_context: SharedAppContext, path: P) -> Result<Op
         if let Ok(explorer) = explorers::renpy::rpa::RenPyArchiveExplorer::open(app_context.clone(), &path) {
             return Ok(Some(Box::new(explorer)));
         }
+        if let Ok(explorer) = explorers::godot::pck::GodotPckExplorer::open(app_context.clone(), &path) {
+            return Ok(Some(Box::new(explorer)));
+        }
 
         open_file(
             app_context,
