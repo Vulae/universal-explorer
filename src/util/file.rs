@@ -108,6 +108,8 @@ unsafe impl<F: Read + Seek> Send for ThreadedFile<F> { }
 pub struct FileSize(u64);
 
 impl FileSize {
+    pub const MAX: FileSize = FileSize(u64::MAX);
+
     pub fn from_file(mut file: impl Seek) -> Result<Self> {
         let position = file.stream_position()?;
         let size = file.seek(io::SeekFrom::End(0))?;
@@ -119,15 +121,15 @@ impl FileSize {
         self.0
     }
 
-    pub fn from_bytes(bytes: u64) -> Self {
+    pub const fn from_bytes(bytes: u64) -> Self {
         Self(bytes)
     }
 
-    pub fn from_kibibytes(kibibytes: u64) -> Self {
+    pub const fn from_kibibytes(kibibytes: u64) -> Self {
         Self(kibibytes * 1024)
     }
 
-    pub fn from_mebibytes(mebibytes: u64) -> Self {
+    pub const fn from_mebibytes(mebibytes: u64) -> Self {
         Self::from_kibibytes(mebibytes * 1024)
     }
 }

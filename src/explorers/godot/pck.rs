@@ -24,6 +24,7 @@ bitflags! {
 
 
 fn fix_path(path: String) -> Result<String> {
+    let path = path.trim_end_matches('\0');
 
     let path_regex = Regex::new(r"^(.+?):\/\/(.+)$")?;
 

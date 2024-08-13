@@ -14,6 +14,9 @@ pub fn open_file<F: Read + Seek>(_app_context: SharedAppContext, mut file: F, fi
     if let Ok(explorer) = explorers::source_engine::vtf::VtfExplorer::file(&mut file, filename.clone()) {
         return Ok(Some(Box::new(explorer)));
     }
+    if let Ok(explorer) = explorers::godot::tex::GodotTexExplorer::file(&mut file, filename.clone()) {
+        return Ok(Some(Box::new(explorer)));
+    }
     if let Ok(explorer) = explorers::text::TextExplorer::file(&mut file, filename.clone()) {
         return Ok(Some(Box::new(explorer)));
     }
@@ -60,6 +63,7 @@ pub enum LoadedThumbnail {
 }
 
 const DEFAULT_DOWNSCALE_FILTER: image::imageops::FilterType = image::imageops::FilterType::Nearest;
+const MAX_THUMBNAIL_LOAD_FILESIZE: FileSize = FileSize::from_mebibytes(10);
 
 pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, hint: SizeHint) -> Result<LoadedThumbnail> {
     file.rewind()?;
@@ -67,12 +71,21 @@ pub fn thumbnail_file(mut file: impl Read + Seek, filename: Option<String>, hint
 
     if let Some(filename) = &filename {
         if let Ok(_) = image::ImageFormat::from_path(filename) {
-            if file_size < FileSize::from_mebibytes(3) {
+            if file_size < MAX_THUMBNAIL_LOAD_FILESIZE {
                 if let Ok(image) = image::ImageReader::new(std::io::BufReader::new(&mut file)).with_guessed_format()?.decode() {
                     return Ok(LoadedThumbnail::Image(hint.downscale_image(image, DEFAULT_DOWNSCALE_FILTER)));
                 }
             }
 
+            return Ok(LoadedThumbnail::ImageSource(crate::app::assets::LUCIDE_FILE_IMAGE));
+        }
+
+        if filename.ends_with(".stex") || filename.ends_with(".ctex") {
+            if file_size < MAX_THUMBNAIL_LOAD_FILESIZE {
+                if let Ok(image) = crate::explorers::godot::tex::godot_extract_texture(&mut file) {
+                    return Ok(LoadedThumbnail::Image(hint.downscale_image(image, DEFAULT_DOWNSCALE_FILTER)));
+                }
+            }
             return Ok(LoadedThumbnail::ImageSource(crate::app::assets::LUCIDE_FILE_IMAGE));
         }
 

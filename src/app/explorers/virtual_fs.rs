@@ -87,7 +87,6 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
                 let threaded_file = crate::util::file::ThreadedFile::new(Arc::new(Mutex::new(file.clone())));
                 let load_icons = Arc::clone(&self.load_icons);
                 std::thread::spawn(move || {
-                    // TODO: Use multiple threads to load thumbnails.
                     match crate::app::loader::thumbnail_file(
                         threaded_file,
                         name,
