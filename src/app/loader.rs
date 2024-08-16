@@ -42,11 +42,11 @@ pub fn open<P: AsRef<Path>>(app_context: SharedAppContext, path: P) -> Result<Op
             return Ok(Some(Box::new(explorer)));
         }
 
-        open_file(
+        return Ok(open_file(
             app_context,
             File::open(&path)?,
             crate::util::file::filename(&path),
-        )?;
+        )?);
     }
 
     Ok(None)
