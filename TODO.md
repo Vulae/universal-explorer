@@ -1,10 +1,11 @@
 
 # Features
 
-- [ ] Better extraction.
-An interface that should have relevant extraction options for the files inside of that directory.
+- [ ] An interface that should have relevant extraction options for the files inside of that directory.
 - [ ] CLI program
 - [ ] Better icon
+- [ ] Refactor explorer loading to allow for errorless handling on non-valid explorers
+- [ ] Logs tab
 
 # Formats
 
