@@ -1,27 +1,12 @@
 
 # [universal-explorer](https://github.com/Vulae/universal-explorer)
 
-This project is a continuation of [universal-unpacker](https://github.com/Vulae/universal-unpacker)
+Simple tool to view & unpack a variety of game archive formats.
 
-### NOTE: This is tool is only meant for viewing and extracting, not editing & saving!
+Look at [TODO.md](/TODO.md) for a list of all supported formats.
 
-I realized having it as just a CLI made it annoying to use, so this project is a GUI app instead.
-A CLI may be implemented in the future to allow for automation of extracting.
+> [!IMPORTANT]
+> This is tool is only meant for viewing and extracting, not editing & saving!
 
-# [Supported Formats](#supported-formats)
-
-* Text
-* Common image formats
-* Source Engine
-    * `.vpk` archive
-    * `.vtf` texture
-
-# [Unimplemented Formats](#unimplemented-formats)
-
-Some formats that will most likely be implemented in the future.
-
-* `.zip` archive
-* Unity game engine assets
-* Godot game engine archive
-* Ren'Py game engine archive
-* Unreal game engine archive
+> [!NOTE]
+> This project is a continuation of [universal-unpacker](https://github.com/Vulae/universal-unpacker)
