@@ -82,7 +82,9 @@ impl<F: Read + Seek> ThreadedFile<F> {
 
 impl<F: Read + Seek> Read for ThreadedFile<F> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.file.lock().unwrap().read(buf)
+        let mut file = self.file.lock().unwrap();
+        file.seek(std::io::SeekFrom::Start(self.pointer))?;
+        file.read(buf)
     }
 }
 
