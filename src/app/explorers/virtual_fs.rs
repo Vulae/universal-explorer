@@ -68,42 +68,44 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
         }
     }
 
+    #[allow(unused)]
     fn get_icon(&mut self, entry: &VirtualFsEntry<F, I>) -> Option<egui::ImageSource> {
-        let hint = crate::util::image::SizeHint::Pixels((EntryDisplay::THUMBNAIL_SIZE.x * EntryDisplay::THUMBNAIL_SIZE.y * 1.5) as u64);
-        let path = entry.path().clone();
-
-        if let Some(cached_icon) = self.cached_icons.get(&path) {
-            return cached_icon.clone().or(Some(crate::app::assets::LUCIDE_FILE));
-        }
-
-        self.cached_icons.insert(path.clone(), None);
-
-        match entry {
-            VirtualFsEntry::Directory(_) => {
-                self.load_icons.lock().unwrap().push((path, crate::app::loader::LoadedThumbnail::ImageSource(crate::app::assets::LUCIDE_FOLDER)));
-            },
-            VirtualFsEntry::File(file) => {
-                let name = file.path().name().map(|s| s.to_owned());
-                let threaded_file = crate::util::file::ThreadedFile::new(Arc::new(Mutex::new(file.clone())));
-                let load_icons = Arc::clone(&self.load_icons);
-                std::thread::spawn(move || {
-                    match crate::app::loader::thumbnail_file(
-                        threaded_file,
-                        name,
-                        hint,
-                    ) {
-                        Ok(thumbnail) => {
-                            load_icons.lock().unwrap().push((path, thumbnail));
-                        },
-                        Err(err) => {
-                            println!("Failed to load icon {}", err);
-                        },
-                    }
-                });
-            },
-        }
-
         None
+        // let hint = crate::util::image::SizeHint::Pixels((EntryDisplay::THUMBNAIL_SIZE.x * EntryDisplay::THUMBNAIL_SIZE.y * 1.5) as u64);
+        // let path = entry.path().clone();
+
+        // if let Some(cached_icon) = self.cached_icons.get(&path) {
+        //     return cached_icon.clone().or(Some(crate::app::assets::LUCIDE_FILE));
+        // }
+
+        // self.cached_icons.insert(path.clone(), None);
+
+        // match entry {
+        //     VirtualFsEntry::Directory(_) => {
+        //         self.load_icons.lock().unwrap().push((path, crate::app::loader::LoadedThumbnail::ImageSource(crate::app::assets::LUCIDE_FOLDER)));
+        //     },
+        //     VirtualFsEntry::File(file) => {
+        //         let name = file.path().name().map(|s| s.to_owned());
+        //         let threaded_file = crate::util::file::ThreadedFile::new(Arc::new(Mutex::new(file.clone())));
+        //         let load_icons = Arc::clone(&self.load_icons);
+        //         std::thread::spawn(move || {
+        //             match crate::app::loader::thumbnail_file(
+        //                 threaded_file,
+        //                 name,
+        //                 hint,
+        //             ) {
+        //                 Ok(thumbnail) => {
+        //                     load_icons.lock().unwrap().push((path, thumbnail));
+        //                 },
+        //                 Err(err) => {
+        //                     println!("Failed to load icon {}", err);
+        //                 },
+        //             }
+        //         });
+        //     },
+        // }
+
+        // None
     }
 
     fn entry_display(&mut self, ui: &mut egui::Ui, entry: VirtualFsEntry<F, I>) {
