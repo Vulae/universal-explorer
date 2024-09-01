@@ -11,53 +11,81 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 
 
+#[inline(always)]
+fn lerp_u8<const N: u16, const D: u16>(a: u8, b: u8) -> u8 {
+    if N == 0 {
+        a
+    } else if N == D {
+        b
+    } else if D == (N << 1) {
+        (a & b) + ((a ^ b) >> 1)
+    } else {
+        (((a as u16) * (D - N) + (b as u16) * N) / D) as u8
+    }
+}
+
+#[inline(always)]
+fn upscale_lower_u8<const N: u8>(x: u8) -> u8 {
+    let shift = 8 - N;
+    (x << shift) | (x >> (N - shift))
+}
+
+#[inline(always)]
 fn decode_rgb565(d: u16) -> Rgb<u8> {
     Rgb([
-        (d >> 8 & 0xf8) as u8 | (d >> 13) as u8,
-        (d >> 3 & 0xfc) as u8 | (d >> 9 & 3) as u8,
-        (d << 3) as u8 | (d >> 2 & 7) as u8,
+        upscale_lower_u8::<5>((d >> 11 & 0b00011111) as u8),
+        upscale_lower_u8::<6>((d >> 5 & 0b00111111) as u8),
+        upscale_lower_u8::<5>((d & 0b00011111) as u8),
     ])
 }
 
-fn rgb888_lerp_13(rgb0: Rgb<u8>, rgb1: Rgb<u8>) -> Rgb<u8> {
+#[inline(always)]
+fn rgb888_lerp<const N: u16, const D: u16>(a: Rgb<u8>, b: Rgb<u8>) -> Rgb<u8> {
     Rgb([
-        (((rgb0.0[0] as u16) * 2 + (rgb1.0[0] as u16)) / 3) as u8,
-        (((rgb0.0[1] as u16) * 2 + (rgb1.0[1] as u16)) / 3) as u8,
-        (((rgb0.0[2] as u16) * 2 + (rgb1.0[2] as u16)) / 3) as u8,
+        lerp_u8::<N, D>(a.0[0], b.0[0]),
+        lerp_u8::<N, D>(a.0[1], b.0[1]),
+        lerp_u8::<N, D>(a.0[2], b.0[2]),
     ])
 }
 
-fn rgb888_lerp_12(rgb0: Rgb<u8>, rgb1: Rgb<u8>) -> Rgb<u8> {
-    Rgb([
-        (((rgb0.0[0] as u16) + (rgb1.0[0] as u16)) / 2) as u8,
-        (((rgb0.0[1] as u16) + (rgb1.0[1] as u16)) / 2) as u8,
-        (((rgb0.0[2] as u16) + (rgb1.0[2] as u16)) / 2) as u8,
-    ])
+
+
+macro_rules! _join_le_bytes_inner {
+    ($type:ty, $counter:expr; $first:expr $(, $rest:expr)*) => {
+        (($first as $type) << $counter) | _join_le_bytes_inner!($type, $counter + 8; $($rest),*)
+    };
+    ($type:ty, $counter:expr;) => {
+        0
+    };
+}
+
+macro_rules! join_le_bytes {
+    ($type:ty; $($bytes:expr),*) => {
+        _join_le_bytes_inner!($type, 0; $($bytes),*)
+    };
 }
 
 
 
 fn decode_bc1_block(data: &[u8], extra_color: &Rgba<u8>, out: &mut [u8], num_blocks_x: u32, block_x: u32) {
-    let q0 = u16::from_le_bytes([data[0], data[1]]);
-    let q1 = u16::from_le_bytes([data[2], data[3]]);
+    let q0 = join_le_bytes!(u16; data[0], data[1]);
+    let q1 = join_le_bytes!(u16; data[2], data[3]);
     let rgb0 = decode_rgb565(q0);
     let rgb1 = decode_rgb565(q1);
 
-    let mut palette: [Rgba<u8>; 4] = [
+    let palette: [Rgba<u8>; 4] = if q0 > q1 { [
         rgb0.to_rgba(),
         rgb1.to_rgba(),
-        Rgba([ 0, 0, 0, 0 ]),
-        Rgba([ 0, 0, 0, 0 ]),
-    ];
-    if q0 > q1 {
-        palette[2] = rgb888_lerp_13(rgb0, rgb1).to_rgba();
-        palette[3] = rgb888_lerp_13(rgb1, rgb0).to_rgba();
-    } else {
-        palette[2] = rgb888_lerp_12(rgb0, rgb1).to_rgba();
-        palette[3] = extra_color.clone();
-    }
+        rgb888_lerp::<1, 3>(rgb0, rgb1).to_rgba(),
+        rgb888_lerp::<2, 3>(rgb0, rgb1).to_rgba(),
+    ] } else { [
+        rgb0.to_rgba(),
+        rgb1.to_rgba(),
+        rgb888_lerp::<1, 2>(rgb0, rgb1).to_rgba(),
+        extra_color.clone(),
+    ] };
 
-    let indices: u32 = u32::from_le_bytes([ data[4], data[5], data[6], data[7] ]);
+    let indices = join_le_bytes!(u32; data[4], data[5], data[6], data[7]);
 
     for pi in 0..16 {
         let index = (indices >> (pi << 1)) & 0b11;
@@ -74,7 +102,7 @@ fn decode_bc1_block(data: &[u8], extra_color: &Rgba<u8>, out: &mut [u8], num_blo
 }
 
 fn decode_bc2_alpha_block(data: &[u8], out: &mut [u8], num_blocks_x: u32, block_x: u32) {
-    let alphas = u64::from_le_bytes([ data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7] ]);
+    let alphas = join_le_bytes!(u64; data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
     for pi in 0..16 {
         // FIXME: The upsampling doesn't seem to be correct.
         let alpha = (((alphas >> (pi << 2)) & 0b1111) as u8) * 17;
@@ -90,24 +118,26 @@ fn decode_bc3_alpha_block(data: &[u8], out: &mut [u8], num_blocks_x: u32, block_
     let a0 = data[0];
     let a1 = data[1];
     
-    let mut palette: [u8; 8] = [ a0, a1, 0, 0, 0, 0, 0, 0 ];
-    if a0 > a1 {
-        palette[2] = (((a0 as u16) * 6 + (a1 as u16) * 1) / 7) as u8;
-        palette[3] = (((a0 as u16) * 5 + (a1 as u16) * 2) / 7) as u8;
-        palette[4] = (((a0 as u16) * 4 + (a1 as u16) * 3) / 7) as u8;
-        palette[5] = (((a0 as u16) * 3 + (a1 as u16) * 4) / 7) as u8;
-        palette[6] = (((a0 as u16) * 2 + (a1 as u16) * 5) / 7) as u8;
-        palette[7] = (((a0 as u16) * 1 + (a1 as u16) * 6) / 7) as u8;
-    } else {
-        palette[2] = (((a0 as u16) * 4 + (a1 as u16) * 1) / 5) as u8;
-        palette[3] = (((a0 as u16) * 3 + (a1 as u16) * 2) / 5) as u8;
-        palette[4] = (((a0 as u16) * 2 + (a1 as u16) * 3) / 5) as u8;
-        palette[5] = (((a0 as u16) * 1 + (a1 as u16) * 4) / 5) as u8;
-        palette[6] = 0;
-        palette[7] = 255;
-    }
+    let palette: [u8; 8] = if a0 > a1 { [
+        lerp_u8::<0, 7>(a0, a1),
+        lerp_u8::<7, 7>(a0, a1),
+        lerp_u8::<1, 7>(a0, a1),
+        lerp_u8::<2, 7>(a0, a1),
+        lerp_u8::<3, 7>(a0, a1),
+        lerp_u8::<4, 7>(a0, a1),
+        lerp_u8::<5, 7>(a0, a1),
+        lerp_u8::<6, 7>(a0, a1),
+    ] } else { [
+        lerp_u8::<0, 5>(a0, a1),
+        lerp_u8::<5, 5>(a0, a1),
+        lerp_u8::<1, 5>(a0, a1),
+        lerp_u8::<2, 5>(a0, a1),
+        lerp_u8::<3, 5>(a0, a1),
+        lerp_u8::<4, 5>(a0, a1),
+        0, 255,
+    ] };
 
-    let indices: u64 = u64::from_le_bytes([ data[2], data[3], data[4], data[5], data[6], data[7], 0, 0 ]);
+    let indices = join_le_bytes!(u64; data[2], data[3], data[4], data[5], data[6], data[7], 0, 0);
     for pi in 0..16 {
         let index = (indices >> (pi * 3)) & 0b111;
         let alpha = palette[index as usize];
