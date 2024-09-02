@@ -69,43 +69,6 @@ impl<F: Read + Seek> Clone for InnerFile<F> {
 
 
 
-pub struct ThreadedFile<F: Read + Seek> {
-    file: Arc<Mutex<F>>,
-    pointer: u64,
-}
-
-impl<F: Read + Seek> ThreadedFile<F> {
-    pub fn new(file: Arc<Mutex<F>>) -> Self {
-        Self { file, pointer: 0 }
-    }
-}
-
-impl<F: Read + Seek> Read for ThreadedFile<F> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let mut file = self.file.lock().unwrap();
-        file.seek(std::io::SeekFrom::Start(self.pointer))?;
-        file.read(buf)
-    }
-}
-
-impl<F: Read + Seek> Seek for ThreadedFile<F> {
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.file.lock().unwrap().seek(pos)
-    }
-}
-
-impl<F: Read + Seek> Clone for ThreadedFile<F> {
-    fn clone(&self) -> Self {
-        Self { file: self.file.clone(), pointer: self.pointer }
-    }
-}
-
-unsafe impl<F: Read + Seek> Send for ThreadedFile<F> { }
-
-
-
-
-
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct FileSize(u64);
 

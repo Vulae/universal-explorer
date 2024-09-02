@@ -7,6 +7,7 @@
 - [ ] Refactor explorer loading to allow for errorless handling on non-valid explorers
 - [ ] Logs tab
 - [ ] Move stuff to sub-modules to allow features & faster compiling for development.
+- [ ] Multithreaded virtual_fs icons loading
 
 # Formats
 
