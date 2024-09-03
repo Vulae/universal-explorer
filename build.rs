@@ -9,7 +9,7 @@ fn main() -> io::Result<()> {
             .set("ProductName", "Universal Explorer")
             .set("InternalName", "universal-explorer")
             .set("Comments", "https://github.com/Vulae/universal-explorer")
-            .set_icon("assets/icon.ico")
+            .set_icon("app/assets/icon.ico")
             .set_language(0x0009)
             .compile()?;
     }

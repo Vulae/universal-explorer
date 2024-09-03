@@ -2,15 +2,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(dead_code)]
 
-mod app;
-mod util;
-mod explorers;
-
 use std::path::PathBuf;
 
-use anyhow::Result;
 use app::run_app;
 use clap::Parser;
+use anyhow::Result;
 
 
 
@@ -23,8 +19,6 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
-    env_logger::init();
-
     let cli = Cli::parse();
 
     run_app(&cli.open)?;

@@ -1,0 +1,26 @@
+[package]
+name = "app"
+
+[features]
+godot = ["dep:godot"]
+source_engine = ["dep:source_engine"]
+renpy = ["dep:renpy"]
+
+[dependencies]
+util = { path = "../crates/util" }
+godot = { path = "../crates/godot", optional = true }
+source_engine = { path = "../crates/source_engine", optional = true }
+renpy = { path = "../crates/renpy", optional = true }
+anyhow = "1.0.86"
+catppuccin-egui = { version = "5.2.0", default-features = false, features = ["egui28"] }
+dark-light = "1.1.1"
+eframe = "0.28.1"
+egui = "0.28.1"
+egui_dock = "0.13.0"
+egui_extras = { version = "0.28.1", features = ["svg", "image"] }
+glob-match = "0.2.1"
+image = "0.25.2"
+rfd = "0.14.1"
+serde = { version = "1.0.209", features = ["derive"] }
+serde_json = "1.0.127"
+uuid = { version = "1.10.0", features = ["v7"] }

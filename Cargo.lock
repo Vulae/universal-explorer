@@ -243,6 +243,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
 
 [[package]]
+name = "app"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "catppuccin-egui",
+ "dark-light",
+ "eframe",
+ "egui",
+ "egui_dock",
+ "egui_extras",
+ "glob-match",
+ "godot",
+ "image",
+ "renpy",
+ "rfd",
+ "serde",
+ "serde_json",
+ "source_engine",
+ "util",
+ "uuid",
+]
+
+[[package]]
 name = "arbitrary"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1480,29 +1503,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "env_filter"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f2c92ceda6ceec50f43169f9ee8424fe2db276791afde7b2cd8bc084cb376ab"
-dependencies = [
- "log",
- "regex",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.11.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13fa619b91fb2381732789fc5de83b45675e882f66623b7d8cb4f643017018d"
-dependencies = [
- "anstream",
- "anstyle",
- "env_filter",
- "humantime",
- "log",
-]
-
-[[package]]
 name = "epaint"
 version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1905,6 +1905,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "godot"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "bitflags 2.6.0",
+ "image",
+ "regex",
+ "util",
+]
+
+[[package]]
 name = "gpu-alloc"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2044,12 +2055,6 @@ checksum = "e3d1354bf6b7235cb4a0576c2619fd4ed18183f689b12b006a0ee7329eeff9a5"
 dependencies = [
  "windows-sys 0.52.0",
 ]
-
-[[package]]
-name = "humantime"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "icrate"
@@ -3297,6 +3302,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
+name = "renpy"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "itertools 0.13.0",
+ "serde_json",
+ "util",
+]
+
+[[package]]
 name = "resvg"
 version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3635,6 +3650,18 @@ checksum = "9f7916fc008ca5542385b89a3d3ce689953c143e9304a9bf8beec1de48994c0d"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "source_engine"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "bitflags 2.6.0",
+ "image",
+ "rayon",
+ "regex",
+ "util",
 ]
 
 [[package]]
@@ -4006,25 +4033,8 @@ name = "universal-explorer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bitflags 2.6.0",
- "catppuccin-egui",
+ "app",
  "clap",
- "dark-light",
- "eframe",
- "egui",
- "egui_dock",
- "egui_extras",
- "env_logger",
- "flate2",
- "glob-match",
- "image",
- "itertools 0.13.0",
- "rayon",
- "regex",
- "rfd",
- "serde",
- "serde_json",
- "uuid",
  "winresource",
 ]
 
@@ -4095,6 +4105,18 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
+
+[[package]]
+name = "util"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "flate2",
+ "image",
+ "rayon",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "uuid"

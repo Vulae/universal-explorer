@@ -1,0 +1,8 @@
+[package]
+name = "renpy"
+
+[dependencies]
+util = { path = "../util" }
+anyhow = "1.0.86"
+itertools = "0.13.0"
+serde_json = "1.0.127"

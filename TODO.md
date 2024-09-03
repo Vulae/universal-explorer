@@ -3,10 +3,10 @@
 
 - [ ] An interface that should have relevant extraction options for the files inside of that directory.
 - [ ] CLI program
-- [ ] Better icon
+- [ ] Better application icon
 - [ ] Refactor explorer loading to allow for errorless handling on non-valid explorers
 - [ ] Logs tab
-- [ ] Move stuff to sub-modules to allow features & faster compiling for development.
+- [x] Move stuff to sub-modules to allow features & faster compiling for development.
 - [ ] Multithreaded virtual_fs icons loading
 
 # Formats
