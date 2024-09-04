@@ -35,7 +35,7 @@ impl GodotTexExplorer {
 }
 
 impl Explorer for GodotTexExplorer {
-    fn uuid(&self) -> Uuid {
+    fn uuid(&self) -> &Uuid {
         self.explorer.uuid()
     }
 

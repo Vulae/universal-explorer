@@ -63,8 +63,8 @@ impl VtfExplorer {
 }
 
 impl Explorer for VtfExplorer {
-    fn uuid(&self) -> Uuid {
-        self.uuid
+    fn uuid(&self) -> &Uuid {
+        &self.uuid
     }
 
     fn name(&mut self) -> String {

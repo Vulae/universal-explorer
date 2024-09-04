@@ -50,7 +50,7 @@ impl RenPyArchiveExplorer<File> {
 }
 
 impl<F: Read + Seek + 'static> Explorer for RenPyArchiveExplorer<F> {
-    fn uuid(&self) -> Uuid {
+    fn uuid(&self) -> &Uuid {
         self.explorer.uuid()
     }
 

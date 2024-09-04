@@ -160,8 +160,8 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
 }
 
 impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for VirtualFsExplorer<F, I> {
-    fn uuid(&self) -> Uuid {
-        self.uuid
+    fn uuid(&self) -> &Uuid {
+        &self.uuid
     }
 
     fn name(&mut self) -> String {

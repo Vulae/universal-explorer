@@ -56,8 +56,8 @@ impl TextExplorer {
 }
 
 impl Explorer for TextExplorer {
-    fn uuid(&self) -> Uuid {
-        self.uuid
+    fn uuid(&self) -> &Uuid {
+        &self.uuid
     }
 
     fn name(&mut self) -> String {

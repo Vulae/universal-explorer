@@ -42,7 +42,7 @@ impl VpkExplorer<File> {
 }
 
 impl<F: Read + Seek + 'static> Explorer for VpkExplorer<F> {
-    fn uuid(&self) -> Uuid {
+    fn uuid(&self) -> &Uuid {
         self.explorer.uuid()
     }
 

@@ -2,7 +2,6 @@
 use std::{cell::RefCell, io::{Read, Seek}, path::Path, rc::Rc};
 use anyhow::Result;
 use crate::{app_util, assets};
-
 use super::loader;
 
 
@@ -68,16 +67,22 @@ impl AppContext {
 
 
 #[derive(Clone)]
-pub struct SharedAppContext(Rc<RefCell<AppContext>>);
+pub struct SharedAppContext {
+    context: Rc<RefCell<AppContext>>,
+}
 
 impl SharedAppContext {
     pub fn new() -> Self {
         let app_context = AppContext::new();
-        Self(Rc::new(RefCell::new(app_context)))
+        Self { context: Rc::new(RefCell::new(app_context)) }
     }
 
     pub fn new_explorer(&mut self, explorer: Box<dyn Explorer>) {
-        self.0.borrow_mut().explorers_to_add.push(SharedExplorer(Rc::new(RefCell::new(explorer))));
+        let shared_explorer = SharedExplorer {
+            uuid: *explorer.uuid(),
+            explorer: Rc::new(RefCell::new(explorer)),
+        };
+        self.context.borrow_mut().explorers_to_add.push(shared_explorer);
     }
 
     pub fn open_file<F: Read + Seek>(&mut self, file: F, filename: Option<String>) -> Result<()> {
@@ -103,9 +108,9 @@ impl eframe::App for SharedAppContext {
         egui_extras::install_image_loaders(ctx);
 
         // TODO: Add config.toml with theme selection. (& with custom theme with catppuccin_egui::Theme)
-        catppuccin_egui::set_theme(ctx, self.0.borrow().theme);
+        catppuccin_egui::set_theme(ctx, self.context.borrow().theme);
 
-        self.0.borrow_mut().auto_focus_new_explorers = !ctx.input(|i| i.modifiers.shift);
+        self.context.borrow_mut().auto_focus_new_explorers = !ctx.input(|i| i.modifiers.shift);
 
         let files = ctx.input(|i| i.raw.dropped_files.clone());
         if !files.is_empty() {
@@ -119,7 +124,7 @@ impl eframe::App for SharedAppContext {
         self.ui_decorations(ctx);
         self.ui_main(ctx);
 
-        self.0.borrow_mut().last_frame_time = frame_start.elapsed();
+        self.context.borrow_mut().last_frame_time = frame_start.elapsed();
     }
 }
 
@@ -141,10 +146,10 @@ impl SharedAppContext {
                     
                     ui.menu_button("Settings", |ui| {
                         ui.menu_button("Theme", |ui| {
-                            ui.selectable_value(&mut self.0.borrow_mut().theme, catppuccin_egui::LATTE, "Latte");
-                            ui.selectable_value(&mut self.0.borrow_mut().theme, catppuccin_egui::FRAPPE, "Frappé");
-                            ui.selectable_value(&mut self.0.borrow_mut().theme, catppuccin_egui::MACCHIATO, "Macchiato");
-                            ui.selectable_value(&mut self.0.borrow_mut().theme, catppuccin_egui::MOCHA, "Mocha");
+                            ui.selectable_value(&mut self.context.borrow_mut().theme, catppuccin_egui::LATTE, "Latte");
+                            ui.selectable_value(&mut self.context.borrow_mut().theme, catppuccin_egui::FRAPPE, "Frappé");
+                            ui.selectable_value(&mut self.context.borrow_mut().theme, catppuccin_egui::MACCHIATO, "Macchiato");
+                            ui.selectable_value(&mut self.context.borrow_mut().theme, catppuccin_egui::MOCHA, "Mocha");
                         });
                     });
 
@@ -155,7 +160,7 @@ impl SharedAppContext {
                         }
                     });
 
-                    ui.label(format!("{:?}", self.0.borrow().last_frame_time));
+                    ui.label(format!("{:?}", self.context.borrow().last_frame_time));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // FIXME: Wrong ordering.
@@ -188,13 +193,13 @@ impl SharedAppContext {
     }
 
     fn ui_main(&mut self, ctx: &egui::Context) {
-        self.0.borrow_mut().push_new_explorers_to_dock_state();
+        self.context.borrow_mut().push_new_explorers_to_dock_state();
 
-        if self.0.borrow_mut().has_explorers() {
+        if self.context.borrow_mut().has_explorers() {
 
             // TODO: Probably want to refactor this thing.
             // Having to clone the dock state, then set it to avoid BorrowMutError is just bad.
-            let mut dock_state = self.0.borrow_mut().dock_state.clone();
+            let mut dock_state = self.context.borrow_mut().dock_state.clone();
     
             egui::CentralPanel::default()
                 .frame(
@@ -207,7 +212,7 @@ impl SharedAppContext {
                         .show_inside(ui, &mut ExplorerTab);
                 });
     
-            self.0.borrow_mut().dock_state = dock_state;
+            self.context.borrow_mut().dock_state = dock_state;
 
         } else {
 
@@ -236,20 +241,23 @@ impl SharedAppContext {
 
 
 pub trait Explorer {
-    fn uuid(&self) -> uuid::Uuid;
-    fn name(&mut self) -> String { "Unnamed Tab".to_owned() }
+    fn uuid(&self) -> &uuid::Uuid;
+    fn name(&mut self) -> String { "Unnamed".to_owned() }
     fn ui(&mut self, ui: &mut egui::Ui);
 }
 
 
 
 #[derive(Clone)]
-pub struct SharedExplorer(Rc<RefCell<Box<dyn Explorer>>>);
+pub struct SharedExplorer {
+    explorer: Rc<RefCell<Box<dyn Explorer>>>,
+    uuid: uuid::Uuid,
+}
 
 impl Explorer for SharedExplorer {
-    fn uuid(&self) -> uuid::Uuid { self.0.borrow().uuid() }
-    fn name(&mut self) -> String { self.0.borrow_mut().name() }
-    fn ui(&mut self, ui: &mut egui::Ui) { self.0.borrow_mut().ui(ui) }
+    fn uuid(&self) -> &uuid::Uuid { &self.uuid }
+    fn name(&mut self) -> String { self.explorer.borrow_mut().name().clone() }
+    fn ui(&mut self, ui: &mut egui::Ui) { self.explorer.borrow_mut().ui(ui) }
 }
 
 

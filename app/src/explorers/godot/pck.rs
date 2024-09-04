@@ -45,7 +45,7 @@ impl GodotPckExplorer<File> {
 }
 
 impl<F: Read + Seek + 'static> Explorer for GodotPckExplorer<F> {
-    fn uuid(&self) -> Uuid {
+    fn uuid(&self) -> &Uuid {
         self.explorer.uuid()
     }
 

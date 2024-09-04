@@ -53,8 +53,8 @@ impl ImageExplorer {
 }
 
 impl Explorer for ImageExplorer {
-    fn uuid(&self) -> Uuid {
-        self.uuid
+    fn uuid(&self) -> &Uuid {
+        &self.uuid
     }
 
     fn name(&mut self) -> String {
