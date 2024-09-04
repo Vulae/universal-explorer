@@ -61,7 +61,7 @@ impl Explorer for ImageExplorer {
         self.name.clone().unwrap_or("Image".to_owned())
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
+    fn ui(&mut self, ui: &mut egui::Ui) {
         if self.texture.is_none() {
             self.texture = Some(app_util::image_utils::image_egui_handle(&self.image, ui.ctx()));
         }
@@ -77,7 +77,6 @@ impl Explorer for ImageExplorer {
                 ).expect("Failed to save image");
             }
         });
-        Ok(())
     }
 }
 

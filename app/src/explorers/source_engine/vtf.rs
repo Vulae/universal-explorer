@@ -71,7 +71,7 @@ impl Explorer for VtfExplorer {
         self.name.clone().unwrap_or("VTF Texture".to_owned())
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
+    fn ui(&mut self, ui: &mut egui::Ui) {
 
         app_util::splitter::Splitter::horizontal(self.uuid).min_size(240.0).show(ui, |ui_a, ui_b| {
 
@@ -153,8 +153,6 @@ impl Explorer for VtfExplorer {
             }
 
         });
-
-        Ok(())
     }
 }
 

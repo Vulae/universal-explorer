@@ -43,8 +43,8 @@ impl Explorer for GodotTexExplorer {
         self.explorer.name()
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
-        self.explorer.ui(ui)
+    fn ui(&mut self, ui: &mut egui::Ui) {
+        self.explorer.ui(ui);
     }
 }
 

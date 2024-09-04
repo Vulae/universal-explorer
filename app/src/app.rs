@@ -21,9 +21,7 @@ impl egui_dock::TabViewer for ExplorerTab {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-        if let Err(err) = tab.ui(ui) {
-            println!("UI Error: {}", err);
-        }
+        tab.ui(ui);
     }
 }
 
@@ -240,7 +238,7 @@ impl SharedAppContext {
 pub trait Explorer {
     fn uuid(&self) -> uuid::Uuid;
     fn name(&mut self) -> String { "Unnamed Tab".to_owned() }
-    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()>;
+    fn ui(&mut self, ui: &mut egui::Ui);
 }
 
 
@@ -251,7 +249,7 @@ pub struct SharedExplorer(Rc<RefCell<Box<dyn Explorer>>>);
 impl Explorer for SharedExplorer {
     fn uuid(&self) -> uuid::Uuid { self.0.borrow().uuid() }
     fn name(&mut self) -> String { self.0.borrow_mut().name() }
-    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> { self.0.borrow_mut().ui(ui) }
+    fn ui(&mut self, ui: &mut egui::Ui) { self.0.borrow_mut().ui(ui) }
 }
 
 

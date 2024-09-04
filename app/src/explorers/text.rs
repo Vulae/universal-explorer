@@ -64,14 +64,13 @@ impl Explorer for TextExplorer {
         self.name.clone().unwrap_or("Text".to_owned())
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
+    fn ui(&mut self, ui: &mut egui::Ui) {
         // TODO: Don't use egui::TextEdit, this should not be editable.
         ui.add(
             egui::TextEdit::multiline(&mut self.text)
                 .font(egui::TextStyle::Monospace)
                 .desired_width(f32::INFINITY)
         );
-        Ok(())
     }
 }
 

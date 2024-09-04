@@ -168,7 +168,7 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for Virt
         self.options.name.clone().unwrap_or("Virtual Filesystem".to_owned())
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
+    fn ui(&mut self, ui: &mut egui::Ui) {
         self.update_new_icons(ui.ctx());
 
         let view_entries = self.view_directory.entries().collect::<Result<Vec<_>>>().map(|view_entries| {
@@ -310,8 +310,6 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for Virt
             self.view_directory = new_view_directory;
             self.search.clear();
         }
-
-        Ok(())
     }
 }
 

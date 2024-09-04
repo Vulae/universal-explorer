@@ -58,8 +58,8 @@ impl<F: Read + Seek + 'static> Explorer for RenPyArchiveExplorer<F> {
         self.explorer.name()
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui) -> Result<()> {
-        self.explorer.ui(ui)
+    fn ui(&mut self, ui: &mut egui::Ui) {
+        self.explorer.ui(ui);
     }
 }
 
