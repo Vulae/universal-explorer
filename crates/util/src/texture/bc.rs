@@ -75,7 +75,7 @@ fn rgba8888_encode_u32(rgba8888: Rgba<u8>) -> u32 {
 
 #[inline(always)]
 fn u32_decode_rgba8888(value: u32) -> Rgba<u8> {
-    Rgba([ (value >> 24) as u8, (value >> 16) as u8, (value >> 8) as u8, value as u8 ])
+    Rgba([ value as u8, (value >> 8) as u8, (value >> 16) as u8, (value >> 24) as u8 ])
 }
 
 #[inline(always)]
