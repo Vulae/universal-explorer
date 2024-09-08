@@ -164,7 +164,7 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for Virt
         &self.uuid
     }
 
-    fn name(&mut self) -> String {
+    fn title(&self) -> String {
         self.options.name.clone().unwrap_or("Virtual Filesystem".to_owned())
     }
 

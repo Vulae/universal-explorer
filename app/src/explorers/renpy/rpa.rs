@@ -54,8 +54,8 @@ impl<F: Read + Seek + 'static> Explorer for RenPyArchiveExplorer<F> {
         self.explorer.uuid()
     }
 
-    fn name(&mut self) -> String {
-        self.explorer.name()
+    fn title(&self) -> String {
+        self.explorer.title()
     }
 
     fn ui(&mut self, ui: &mut egui::Ui) {

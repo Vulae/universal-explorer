@@ -60,7 +60,7 @@ impl Explorer for TextExplorer {
         &self.uuid
     }
 
-    fn name(&mut self) -> String {
+    fn title(&self) -> String {
         self.name.clone().unwrap_or("Text".to_owned())
     }
 

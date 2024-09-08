@@ -67,7 +67,7 @@ impl Explorer for VtfExplorer {
         &self.uuid
     }
 
-    fn name(&mut self) -> String {
+    fn title(&self) -> String {
         self.name.clone().unwrap_or("VTF Texture".to_owned())
     }
 

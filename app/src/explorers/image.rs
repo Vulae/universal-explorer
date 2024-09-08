@@ -57,7 +57,7 @@ impl Explorer for ImageExplorer {
         &self.uuid
     }
 
-    fn name(&mut self) -> String {
+    fn title(&self) -> String {
         self.name.clone().unwrap_or("Image".to_owned())
     }
 
