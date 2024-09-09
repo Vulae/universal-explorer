@@ -18,7 +18,7 @@ jobs:
         os: [ windows-x86_64, linux-x86_64 ]
         include:
           - os: linux-x86_64
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             artifact_name: universal-explorer
             asset_name: universal-explorer_linux_x86_64
           - os: windows-x86_64
