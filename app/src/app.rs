@@ -387,6 +387,14 @@ impl SharedAppContext {
 
                     ui.add_space(16.0);
 
+                    if ui.button("+").clicked() {
+                        if let Some(file_path) =
+                            rfd::FileDialog::new().set_title("File to Open").pick_file()
+                        {
+                            self.open(file_path).expect("Failed to open file");
+                        }
+                    }
+
                     ui.menu_button("Settings", |ui| {
                         ui.menu_button("Theme", |ui| {
                             ui.selectable_value(
