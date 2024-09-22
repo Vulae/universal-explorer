@@ -1,5 +1,6 @@
 [package]
 name = "util"
+edition.workspace = true
 
 [dependencies]
 anyhow = "1.0.86"

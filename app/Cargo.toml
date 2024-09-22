@@ -1,5 +1,6 @@
 [package]
 name = "app"
+edition.workspace = true
 
 [features]
 godot = ["dep:godot"]
