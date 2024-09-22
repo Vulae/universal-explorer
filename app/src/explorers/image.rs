@@ -1,11 +1,12 @@
-
-use std::{fs::File, io::{BufReader, Read, Seek}, path::PathBuf};
 use crate::{app::Explorer, app_util};
 use anyhow::Result;
 use image::DynamicImage;
+use std::{
+    fs::File,
+    io::{BufReader, Read, Seek},
+    path::PathBuf,
+};
 use uuid::Uuid;
-
-
 
 pub struct ImageExplorer {
     name: Option<String>,
@@ -45,10 +46,7 @@ impl ImageExplorer {
 
     pub fn open<P: Into<PathBuf>>(path: P) -> Result<ImageExplorer> {
         let path: PathBuf = path.into();
-        ImageExplorer::file(
-            File::open(&path)?,
-            util::file_utils::filename(&path),
-        )
+        ImageExplorer::file(File::open(&path)?, util::file_utils::filename(&path))
     }
 }
 
@@ -63,21 +61,24 @@ impl Explorer for ImageExplorer {
 
     fn ui(&mut self, ui: &mut egui::Ui) {
         if self.texture.is_none() {
-            self.texture = Some(app_util::image_utils::image_egui_handle(&self.image, ui.ctx()));
+            self.texture = Some(app_util::image_utils::image_egui_handle(
+                &self.image,
+                ui.ctx(),
+            ));
         }
         let texture = self.texture.as_ref().unwrap();
         ui.add_sized(
             ui.available_size(),
-            egui::Image::new(egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&texture))).shrink_to_fit()
-        ).context_menu(|ui| {
+            egui::Image::new(egui::ImageSource::Texture(
+                egui::load::SizedTexture::from_handle(&texture),
+            ))
+            .shrink_to_fit(),
+        )
+        .context_menu(|ui| {
             if ui.button("Save Image").clicked() {
-                app_util::image_utils::save_image(
-                    &self.image,
-                    self.name.clone(),
-                ).expect("Failed to save image");
+                app_util::image_utils::save_image(&self.image, self.name.clone())
+                    .expect("Failed to save image");
             }
         });
     }
 }
-
-

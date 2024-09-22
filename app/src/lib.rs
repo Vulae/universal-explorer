@@ -1,33 +1,29 @@
-
 #![allow(unused)]
 
 extern crate anyhow;
-extern crate util;
 extern crate egui;
+#[cfg(feature = "godot")]
+extern crate godot;
 extern crate image;
-extern crate uuid;
+#[cfg(feature = "renpy")]
+extern crate renpy;
 extern crate rfd;
 #[cfg(feature = "source_engine")]
 extern crate source_engine;
-#[cfg(feature = "godot")]
-extern crate godot;
-#[cfg(feature = "renpy")]
-extern crate renpy;
+extern crate util;
+extern crate uuid;
 
 mod app;
-mod explorers;
 mod app_util;
-mod loader;
 mod assets;
+mod explorers;
+mod loader;
 
-use std::path::PathBuf;
 use anyhow::Result;
 use app::SharedAppContext;
-
-
+use std::path::PathBuf;
 
 pub fn run_app(open_files: &Vec<PathBuf>) -> Result<()> {
-
     let mut app_context = SharedAppContext::new();
 
     for file in open_files {
@@ -69,5 +65,3 @@ pub fn run_app(open_files: &Vec<PathBuf>) -> Result<()> {
 
     Ok(())
 }
-
-

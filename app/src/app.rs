@@ -1,10 +1,14 @@
-
-use std::{cell::RefCell, collections::VecDeque, io::{Read, Seek}, path::Path, rc::Rc, sync::{Arc, Mutex}};
-use anyhow::Result;
-use crate::{app_util, assets};
 use super::loader;
-
-
+use crate::{app_util, assets};
+use anyhow::Result;
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    io::{Read, Seek},
+    path::Path,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
 struct ExplorerPane;
 
@@ -13,8 +17,13 @@ impl ExplorerPane {
         pane.icon()
     }
 
-    fn tab_icon_for_tile(&mut self, tiles: &egui_tiles::Tiles<SharedExplorer>, tile_id: egui_tiles::TileId) -> Option<egui::ImageSource<'static>> {
-        tiles.get(tile_id)
+    fn tab_icon_for_tile(
+        &mut self,
+        tiles: &egui_tiles::Tiles<SharedExplorer>,
+        tile_id: egui_tiles::TileId,
+    ) -> Option<egui::ImageSource<'static>> {
+        tiles
+            .get(tile_id)
             .map(|tile| {
                 if let egui_tiles::Tile::Pane(pane) = tile {
                     Some(pane)
@@ -33,18 +42,30 @@ impl egui_tiles::Behavior<SharedExplorer> for ExplorerPane {
         pane.title().into()
     }
 
-    fn is_tab_closable(&self, _tiles: &egui_tiles::Tiles<SharedExplorer>, _tile_id: egui_tiles::TileId) -> bool {
+    fn is_tab_closable(
+        &self,
+        _tiles: &egui_tiles::Tiles<SharedExplorer>,
+        _tile_id: egui_tiles::TileId,
+    ) -> bool {
         true
     }
 
     // Taken from egui_tiles::Behavior::tab_ui
     // But with ability to display Explorer::icon
     // And the ability to close with middle click
-    fn tab_ui(&mut self, tiles: &mut egui_tiles::Tiles<SharedExplorer>, ui: &mut egui::Ui, id: egui::Id, tile_id: egui_tiles::TileId, state: &egui_tiles::TabState) -> egui::Response {
+    fn tab_ui(
+        &mut self,
+        tiles: &mut egui_tiles::Tiles<SharedExplorer>,
+        ui: &mut egui::Ui,
+        id: egui::Id,
+        tile_id: egui_tiles::TileId,
+        state: &egui_tiles::TabState,
+    ) -> egui::Response {
         let text = self.tab_title_for_tile(tiles, tile_id);
         let icon_size = egui::Vec2::splat(16.0);
         let icon_right_padding = 4.0;
-        let icon = self.tab_icon_for_tile(tiles, tile_id)
+        let icon = self
+            .tab_icon_for_tile(tiles, tile_id)
             .map(|icon| egui::Image::new(icon).fit_to_exact_size(icon_size));
         let close_btn_size = egui::Vec2::splat(self.close_button_outer_size());
         let close_btn_left_padding = 4.0;
@@ -56,7 +77,11 @@ impl egui_tiles::Behavior<SharedExplorer> for ExplorerPane {
         let button_width = galley.size().x
             + 2.0 * x_margin
             + f32::from(state.closable) * (close_btn_left_padding + close_btn_size.x)
-            + if icon.is_some() { icon_size.x + icon_right_padding } else { 0.0 };
+            + if icon.is_some() {
+                icon_size.x + icon_right_padding
+            } else {
+                0.0
+            };
         let (_, tab_rect) = ui.allocate_space(egui::vec2(button_width, ui.available_height()));
 
         let tab_response = ui
@@ -94,10 +119,13 @@ impl egui_tiles::Behavior<SharedExplorer> for ExplorerPane {
 
             // Render icon
             if let Some(icon) = icon {
-                icon.paint_at(ui, egui::Rect::from_min_size(text_icon_position, egui::Vec2::new(16.0, 16.0)));
+                icon.paint_at(
+                    ui,
+                    egui::Rect::from_min_size(text_icon_position, egui::Vec2::new(16.0, 16.0)),
+                );
                 text_icon_position += egui::Vec2::new(icon_size.x + icon_right_padding, 0.0);
             }
-            
+
             // Render the title
             let text_color = self.tab_text_color(ui.visuals(), tiles, tile_id, state);
             ui.painter().galley(text_icon_position, galley, text_color);
@@ -141,12 +169,20 @@ impl egui_tiles::Behavior<SharedExplorer> for ExplorerPane {
         self.on_tab_button(tiles, tile_id, tab_response)
     }
 
-    fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: egui_tiles::TileId, pane: &mut SharedExplorer) -> egui_tiles::UiResponse {
+    fn pane_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        _tile_id: egui_tiles::TileId,
+        pane: &mut SharedExplorer,
+    ) -> egui_tiles::UiResponse {
         // FIXME: Force frame size to be available space.
         egui::ScrollArea::new(true).show(ui, |ui| {
             egui::Frame::central_panel(ui.style())
                 .inner_margin(16.0)
-                .stroke(egui::Stroke::new(1.0, ui.style().visuals.widgets.active.bg_fill))
+                .stroke(egui::Stroke::new(
+                    1.0,
+                    ui.style().visuals.widgets.active.bg_fill,
+                ))
                 .show(ui, |ui| {
                     let available_rect = ui.available_rect_before_wrap();
                     ui.expand_to_include_rect(available_rect);
@@ -169,10 +205,6 @@ impl egui_tiles::Behavior<SharedExplorer> for ExplorerPane {
     }
 }
 
-
-
-
-
 pub enum AppContextEvent {
     NewExplorer(Box<dyn Explorer>),
 }
@@ -183,11 +215,15 @@ struct AppContextEventReceiver {
 
 impl AppContextEventReceiver {
     pub fn new() -> Self {
-        Self { queue: Arc::new(Mutex::new(VecDeque::new())) }
+        Self {
+            queue: Arc::new(Mutex::new(VecDeque::new())),
+        }
     }
 
     pub fn create_sender(&self) -> AppContextEventSender {
-        AppContextEventSender { queue: Arc::clone(&self.queue) }
+        AppContextEventSender {
+            queue: Arc::clone(&self.queue),
+        }
     }
 
     pub fn pop(&mut self) -> Option<AppContextEvent> {
@@ -205,10 +241,6 @@ impl AppContextEventSender {
         self.queue.lock().unwrap().push_back(event)
     }
 }
-
-
-
-
 
 // TODO: Add cache for old deleted explorers, to add undo delete functionality.
 pub struct AppContext {
@@ -245,32 +277,28 @@ impl AppContext {
                         uuid: *explorer.uuid(),
                         explorer: Rc::new(RefCell::new(explorer)),
                     });
-                    let _ = self.tree.tiles.insert_tab_tile(vec![ id ]);
+                    let _ = self.tree.tiles.insert_tab_tile(vec![id]);
                     // TODO: Am I just dumb and missed something in the docs?
                     // Why isn't there a way to force a default root?
                     let target = self.tree.root().unwrap_or_else(|| {
-                        let root_id = self.tree.tiles.insert_container(
-                            egui_tiles::Container::Tabs(
-                                egui_tiles::Tabs {
+                        let root_id =
+                            self.tree
+                                .tiles
+                                .insert_container(egui_tiles::Container::Tabs(egui_tiles::Tabs {
                                     children: Vec::new(),
                                     active: None,
-                                }
-                            )
-                        );
+                                }));
                         // Is this stupid?
                         self.tree.root = Some(root_id);
                         root_id
                     });
-                    self.tree.move_tile_to_container(id, target, usize::MAX, true);
-                },
+                    self.tree
+                        .move_tile_to_container(id, target, usize::MAX, true);
+                }
             }
         }
     }
 }
-
-
-
-
 
 #[derive(Clone)]
 pub struct SharedAppContext {
@@ -288,7 +316,8 @@ impl SharedAppContext {
     }
 
     pub fn new_explorer(&mut self, explorer: Box<dyn Explorer>) {
-        self.event_sender.push(AppContextEvent::NewExplorer(explorer));
+        self.event_sender
+            .push(AppContextEvent::NewExplorer(explorer));
     }
 
     pub fn open_file<F: Read + Seek>(&mut self, file: F, filename: Option<String>) -> Result<()> {
@@ -340,32 +369,60 @@ impl SharedAppContext {
         egui::TopBottomPanel::top("application_decorations")
             .frame(
                 egui::Frame::side_top_panel(&ctx.style())
-                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                    .inner_margin(egui::Margin::symmetric(8.0, 4.0)),
             )
             .show(ctx, |ui| {
-                let interaction = ui.interact(ui.max_rect(), "application_decorations_interaction".into(), egui::Sense::click_and_drag());
+                let interaction = ui.interact(
+                    ui.max_rect(),
+                    "application_decorations_interaction".into(),
+                    egui::Sense::click_and_drag(),
+                );
 
                 egui::menu::bar(ui, |ui| {
                     ui.image(assets::UNIVERSAL_EXPLORER_ICON);
-                    ui.hyperlink_to("universal-explorer", "https://github.com/Vulae/universal-explorer");
+                    ui.hyperlink_to(
+                        "universal-explorer",
+                        "https://github.com/Vulae/universal-explorer",
+                    );
 
                     ui.add_space(16.0);
-                    
+
                     ui.menu_button("Settings", |ui| {
                         ui.menu_button("Theme", |ui| {
-                            ui.selectable_value(&mut self.context.borrow_mut().theme, catppuccin_egui::LATTE, "Latte");
-                            ui.selectable_value(&mut self.context.borrow_mut().theme, catppuccin_egui::FRAPPE, "Frappé");
-                            ui.selectable_value(&mut self.context.borrow_mut().theme, catppuccin_egui::MACCHIATO, "Macchiato");
-                            ui.selectable_value(&mut self.context.borrow_mut().theme, catppuccin_egui::MOCHA, "Mocha");
+                            ui.selectable_value(
+                                &mut self.context.borrow_mut().theme,
+                                catppuccin_egui::LATTE,
+                                "Latte",
+                            );
+                            ui.selectable_value(
+                                &mut self.context.borrow_mut().theme,
+                                catppuccin_egui::FRAPPE,
+                                "Frappé",
+                            );
+                            ui.selectable_value(
+                                &mut self.context.borrow_mut().theme,
+                                catppuccin_egui::MACCHIATO,
+                                "Macchiato",
+                            );
+                            ui.selectable_value(
+                                &mut self.context.borrow_mut().theme,
+                                catppuccin_egui::MOCHA,
+                                "Mocha",
+                            );
                         });
                     });
 
-                    app_util::virtual_fs::render_dropdown_fs(ui, &mut crate::app::assets::ASSETS_FS.clone(), "Built-In", |entry| {
-                        if let Some(file) = entry.as_file() {
-                            let name = file.path().name().map(|s| s.to_owned());
-                            self.open_file(file, name).expect("Failed to open file");
-                        }
-                    });
+                    app_util::virtual_fs::render_dropdown_fs(
+                        ui,
+                        &mut crate::app::assets::ASSETS_FS.clone(),
+                        "Built-In",
+                        |entry| {
+                            if let Some(file) = entry.as_file() {
+                                let name = file.path().name().map(|s| s.to_owned());
+                                self.open_file(file, name).expect("Failed to open file");
+                            }
+                        },
+                    );
 
                     ui.label(format!("{:?}", self.context.borrow().last_frame_time));
 
@@ -380,18 +437,21 @@ impl SharedAppContext {
                         let is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
                         // if ui.button(if is_maximized { "🗗" } else { "🗖" }).clicked() {
                         if ui.button("🗖").clicked() {
-                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                            ui.ctx()
+                                .send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
                         }
 
                         if ui.button("🗕").clicked() {
-                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                            ui.ctx()
+                                .send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                         }
                     });
                 });
 
                 if interaction.double_clicked() {
                     let is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
                 }
                 if interaction.drag_started_by(egui::PointerButton::Primary) {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
@@ -401,23 +461,17 @@ impl SharedAppContext {
 
     fn ui_main(&mut self, ctx: &egui::Context) {
         if !self.context.borrow().tree.is_empty() {
-
             egui::CentralPanel::default()
-                .frame(
-                    egui::Frame::central_panel(&ctx.style())
-                        .multiply_with_opacity(0.5)
-                )
+                .frame(egui::Frame::central_panel(&ctx.style()).multiply_with_opacity(0.5))
                 .show(ctx, |ui| {
                     self.context.borrow_mut().tree.ui(&mut ExplorerPane, ui);
                 });
-
         } else {
-
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::central_panel(&ctx.style())
                         .multiply_with_opacity(0.5)
-                        .inner_margin(96.0)
+                        .inner_margin(96.0),
                 )
                 .show(ctx, |ui| {
                     ui.centered_and_justified(|ui| {
@@ -426,27 +480,24 @@ impl SharedAppContext {
                             egui::RichText::new("Drag & drop files to view")
                                 .text_style(egui::TextStyle::Heading)
                                 .size(64.0)
-                                .strong()
+                                .strong(),
                         ));
                     });
                 });
-            
         }
     }
 }
 
-
-
-
-
 pub trait Explorer {
     fn uuid(&self) -> &uuid::Uuid;
-    fn title(&self) -> String { "Unnamed".to_owned() }
-    fn icon(&self) -> Option<egui::ImageSource<'static>> { None }
+    fn title(&self) -> String {
+        "Unnamed".to_owned()
+    }
+    fn icon(&self) -> Option<egui::ImageSource<'static>> {
+        None
+    }
     fn ui(&mut self, ui: &mut egui::Ui);
 }
-
-
 
 #[derive(Clone)]
 pub struct SharedExplorer {
@@ -455,10 +506,16 @@ pub struct SharedExplorer {
 }
 
 impl Explorer for SharedExplorer {
-    fn uuid(&self) -> &uuid::Uuid { &self.uuid }
-    fn title(&self) -> String { self.explorer.borrow().title().clone() }
-    fn icon(&self) -> Option<egui::ImageSource<'static>> { self.explorer.borrow().icon() }
-    fn ui(&mut self, ui: &mut egui::Ui) { self.explorer.borrow_mut().ui(ui) }
+    fn uuid(&self) -> &uuid::Uuid {
+        &self.uuid
+    }
+    fn title(&self) -> String {
+        self.explorer.borrow().title().clone()
+    }
+    fn icon(&self) -> Option<egui::ImageSource<'static>> {
+        self.explorer.borrow().icon()
+    }
+    fn ui(&mut self, ui: &mut egui::Ui) {
+        self.explorer.borrow_mut().ui(ui)
+    }
 }
-
-

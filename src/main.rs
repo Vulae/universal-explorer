@@ -1,14 +1,11 @@
-
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(dead_code)]
 
 use std::path::PathBuf;
 
+use anyhow::Result;
 use app::run_app;
 use clap::Parser;
-use anyhow::Result;
-
-
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

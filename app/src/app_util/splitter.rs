@@ -1,8 +1,7 @@
-
 // https://github.com/emilk/egui/issues/944#issuecomment-1809865470
 
-use std::hash::Hash;
 use egui::{CursorIcon, Id, Layout, Pos2, Rect, Rounding, Sense, Ui, Vec2};
+use std::hash::Hash;
 
 /// An axis that a Splitter can use
 #[derive(Copy, Clone, Debug)]
@@ -36,7 +35,6 @@ pub struct Splitter {
     data: SplitterData,
 }
 impl Splitter {
-
     /// Create a new Splitter
     pub fn new(id_source: impl Hash, axis: SplitterAxis) -> Self {
         Self {
@@ -53,7 +51,7 @@ impl Splitter {
     pub fn vertical(id_source: impl Hash) -> Self {
         Self::new(id_source, SplitterAxis::Vertical)
     }
-    
+
     /// Create a new horizontal Splitter
     pub fn horizontal(id_source: impl Hash) -> Self {
         Self::new(id_source, SplitterAxis::Horizontal)
@@ -210,5 +208,3 @@ impl Splitter {
         })
     }
 }
-
-

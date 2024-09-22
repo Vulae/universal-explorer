@@ -1,10 +1,7 @@
-
-use std::{collections::HashMap, io::Read, iter::FromIterator};
 use anyhow::{anyhow, Result};
+use std::{collections::HashMap, io::Read, iter::FromIterator};
 
 use super::parser;
-
-
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -53,13 +50,28 @@ impl Value {
             Value::Bool(bool) => serde_json::Value::Bool(bool),
             Value::Int(int) => serde_json::Value::Number(serde_json::Number::from(int)),
             Value::Uint(uint) => serde_json::Value::Number(serde_json::Number::from(uint)),
-            Value::Float(float) => serde_json::Value::Number(serde_json::Number::from_f64(float).unwrap()),
-            Value::BigInt(bigint) => serde_json::Value::Number(serde_json::Number::from(bigint_to_u64(&bigint).unwrap())),
+            Value::Float(float) => {
+                serde_json::Value::Number(serde_json::Number::from_f64(float).unwrap())
+            }
+            Value::BigInt(bigint) => {
+                serde_json::Value::Number(serde_json::Number::from(bigint_to_u64(&bigint).unwrap()))
+            }
             Value::String(string) => serde_json::Value::String(string),
-            Value::Binary(binary) => serde_json::Value::Array(binary.into_iter().map(|v| serde_json::Value::Number(serde_json::Number::from(v))).collect::<Vec<_>>()),
-            Value::List(list) => serde_json::Value::Array(list.into_iter().map(|v| v.to_json()).collect::<Vec<_>>()),
-            Value::Dict(dict) => serde_json::Value::Object(serde_json::Map::from_iter(dict.into_iter().map(|(k, v)| (k, v.to_json())))),
-            Value::Tuple(tuple) => serde_json::Value::Array(tuple.into_iter().map(|v| v.to_json()).collect::<Vec<_>>()),
+            Value::Binary(binary) => serde_json::Value::Array(
+                binary
+                    .into_iter()
+                    .map(|v| serde_json::Value::Number(serde_json::Number::from(v)))
+                    .collect::<Vec<_>>(),
+            ),
+            Value::List(list) => {
+                serde_json::Value::Array(list.into_iter().map(|v| v.to_json()).collect::<Vec<_>>())
+            }
+            Value::Dict(dict) => serde_json::Value::Object(serde_json::Map::from_iter(
+                dict.into_iter().map(|(k, v)| (k, v.to_json())),
+            )),
+            Value::Tuple(tuple) => {
+                serde_json::Value::Array(tuple.into_iter().map(|v| v.to_json()).collect::<Vec<_>>())
+            }
             Value::Module(_) => todo!(),
             Value::Class(_) => todo!(),
         }
@@ -92,8 +104,11 @@ pub struct Class {
 
 impl Class {
     pub fn new(module: Module, args: Value) -> Self {
-        Self { module, args: Box::new(args), state: None, data: HashMap::new() }
+        Self {
+            module,
+            args: Box::new(args),
+            state: None,
+            data: HashMap::new(),
+        }
     }
 }
-
-

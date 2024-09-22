@@ -1,8 +1,6 @@
-
 use std::{env, io};
 
 fn main() -> io::Result<()> {
-
     if env::var_os("CARGO_CFG_TARGET_OS").unwrap() == "windows" {
         winresource::WindowsResource::new()
             .set("FileDescription", "Universal Explorer")

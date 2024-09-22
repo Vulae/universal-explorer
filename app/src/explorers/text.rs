@@ -1,10 +1,11 @@
-
-use std::{fs::File, io::{Read, Seek}, path::PathBuf};
 use crate::app::Explorer;
 use anyhow::{anyhow, Result};
+use std::{
+    fs::File,
+    io::{Read, Seek},
+    path::PathBuf,
+};
 use uuid::Uuid;
-
-
 
 fn is_text_file<F: Read + Seek>(file: &mut F) -> Result<bool> {
     let position = file.stream_position()?;
@@ -15,8 +16,6 @@ fn is_text_file<F: Read + Seek>(file: &mut F) -> Result<bool> {
     file.seek(std::io::SeekFrom::Start(position))?;
     Ok(is_text_file)
 }
-
-
 
 pub struct TextExplorer {
     name: Option<String>,
@@ -48,10 +47,7 @@ impl TextExplorer {
 
     pub fn open<P: Into<PathBuf>>(path: P) -> Result<TextExplorer> {
         let path: PathBuf = path.into();
-        TextExplorer::file(
-            &mut File::open(&path)?,
-            util::file_utils::filename(&path),
-        )
+        TextExplorer::file(&mut File::open(&path)?, util::file_utils::filename(&path))
     }
 }
 
@@ -69,9 +65,7 @@ impl Explorer for TextExplorer {
         ui.add(
             egui::TextEdit::multiline(&mut self.text)
                 .font(egui::TextStyle::Monospace)
-                .desired_width(f32::INFINITY)
+                .desired_width(f32::INFINITY),
         );
     }
 }
-
-

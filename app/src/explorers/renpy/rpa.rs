@@ -1,19 +1,27 @@
-
-use std::{fs::File, io::{Read, Seek}, path::PathBuf};
+use crate::{
+    app::{Explorer, SharedAppContext},
+    explorers::virtual_fs::{VirtualFsExplorer, VirtualFsExplorerOptions},
+};
 use anyhow::Result;
 use renpy::rpa::RenPyArchive;
+use std::{
+    fs::File,
+    io::{Read, Seek},
+    path::PathBuf,
+};
 use util::{file_utils::InnerFile, virtual_fs::VirtualFs};
 use uuid::Uuid;
-use crate::{app::{Explorer, SharedAppContext}, explorers::virtual_fs::{VirtualFsExplorer, VirtualFsExplorerOptions}};
-
-
 
 pub struct RenPyArchiveExplorer<F: Read + Seek> {
     explorer: VirtualFsExplorer<InnerFile<F>, RenPyArchive<F>>,
 }
 
 impl<F: Read + Seek + 'static> RenPyArchiveExplorer<F> {
-    pub fn new(app_context: SharedAppContext, rpa: RenPyArchive<F>, name: Option<String>) -> Result<Self> {
+    pub fn new(
+        app_context: SharedAppContext,
+        rpa: RenPyArchive<F>,
+        name: Option<String>,
+    ) -> Result<Self> {
         Ok(RenPyArchiveExplorer {
             explorer: VirtualFsExplorer::new(
                 app_context,
@@ -27,25 +35,28 @@ impl<F: Read + Seek + 'static> RenPyArchiveExplorer<F> {
         })
     }
 
-    pub fn file(app_context: SharedAppContext, mut file: F, filename: Option<String>) -> Result<Self> {
+    pub fn file(
+        app_context: SharedAppContext,
+        mut file: F,
+        filename: Option<String>,
+    ) -> Result<Self> {
         file.rewind()?;
         Ok(RenPyArchiveExplorer::new(
             app_context,
             RenPyArchive::load(file)?,
-            filename.map(|f| util::file_utils::filename(&f)).flatten()
+            filename.map(|f| util::file_utils::filename(&f)).flatten(),
         )?)
     }
 }
 
 impl RenPyArchiveExplorer<File> {
-    pub fn open<P: Into<PathBuf>>(app_context: SharedAppContext, path: P) -> Result<RenPyArchiveExplorer<File>> {
+    pub fn open<P: Into<PathBuf>>(
+        app_context: SharedAppContext,
+        path: P,
+    ) -> Result<RenPyArchiveExplorer<File>> {
         let path: PathBuf = path.into();
         let rpa = RenPyArchive::load(File::open(&path)?)?;
-        RenPyArchiveExplorer::new(
-            app_context,
-            rpa,
-            util::file_utils::filename(path),
-        )
+        RenPyArchiveExplorer::new(app_context, rpa, util::file_utils::filename(path))
     }
 }
 
@@ -62,5 +73,3 @@ impl<F: Read + Seek + 'static> Explorer for RenPyArchiveExplorer<F> {
         self.explorer.ui(ui);
     }
 }
-
-

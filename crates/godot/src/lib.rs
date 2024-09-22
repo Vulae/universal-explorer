@@ -1,9 +1,8 @@
-
-extern crate util;
 extern crate anyhow;
-extern crate regex;
-extern crate image;
 extern crate bitflags;
+extern crate image;
+extern crate regex;
+extern crate util;
 
 pub mod pck;
 pub mod tex;

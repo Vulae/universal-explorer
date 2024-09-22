@@ -1,10 +1,12 @@
-
-use std::{fs::{self, File}, io::{Read, Seek}, path::PathBuf, sync::{Arc, Mutex}};
+use crate::util::{file_utils::InnerFile, tree_fs::TreeFs};
 use anyhow::{anyhow, Result};
 use regex::Regex;
-use crate::util::{file_utils::InnerFile, tree_fs::TreeFs};
-
-
+use std::{
+    fs::{self, File},
+    io::{Read, Seek},
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 pub struct VpkFile<F: Read + Seek> {
     inner: InnerFile<F>,
@@ -38,11 +40,12 @@ impl<F: Read + Seek> Read for VpkFile<F> {
 
 impl<F: Read + Seek> Clone for VpkFile<F> {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone(), preload: self.preload.clone() }
+        Self {
+            inner: self.inner.clone(),
+            preload: self.preload.clone(),
+        }
     }
 }
-
-
 
 pub struct VpkArchiveFiles<F: Read + Seek> {
     pub dir: F,
@@ -65,16 +68,18 @@ impl VpkArchiveFiles<File> {
 
         let path_filename = path.file_name().unwrap().to_string_lossy().to_string();
         let path_filename_regex = Regex::new(r"(.+?)(?:_dir|_\d+)?.vpk")?;
-        
+
         if let Some(caps) = path_filename_regex.captures(&path_filename) {
             let archive_name = caps.get(1).unwrap().as_str();
 
             let mut dir: Option<PathBuf> = None;
             let mut entries: Vec<PathBuf> = Vec::new();
-            
+
             for entry in fs::read_dir(path.parent().unwrap())? {
                 let entry = entry.unwrap();
-                if entry.path().is_dir() { continue; }
+                if entry.path().is_dir() {
+                    continue;
+                }
 
                 let filename = entry.file_name();
                 let filename = filename.to_str().unwrap();
@@ -92,10 +97,8 @@ impl VpkArchiveFiles<File> {
                             } else {
                                 entries.push(entry.path());
                             }
-                        },
-                        None => {
-                            dir = Some(entry.path())
                         }
+                        None => dir = Some(entry.path()),
                     }
                 }
             }
@@ -108,14 +111,16 @@ impl VpkArchiveFiles<File> {
                 for entry in entries {
                     open_entries.push(fs::File::open(entry)?);
                 }
-                return Ok((dir.to_string_lossy().to_string(), Self::new(open_dir, open_entries)));
+                return Ok((
+                    dir.to_string_lossy().to_string(),
+                    Self::new(open_dir, open_entries),
+                ));
             }
         }
 
         Err(anyhow!("Failed to locate VPK archive files."))
     }
 }
-
 
 pub struct VpkArchive<F: Read + Seek> {
     fs: TreeFs<VpkFile<F>>,
@@ -132,20 +137,20 @@ impl<F: Read + Seek> VpkArchive<F> {
         let mut reader = crate::util::reader::Reader::new_le(&mut vpk_files.dir);
 
         if &reader.read::<[u8; 4]>()? != b"\x34\x12\xAA\x55" {
-            return Err(anyhow!("Invalid .vpk identifier"))
+            return Err(anyhow!("Invalid .vpk identifier"));
         }
         let version = reader.read::<u32>()?;
         let tree_size = reader.read::<u32>()?;
 
         match version {
-            1 => { },
-            2 => { reader.seek(std::io::SeekFrom::Current(16))?; },
+            1 => {}
+            2 => {
+                reader.seek(std::io::SeekFrom::Current(16))?;
+            }
             _ => return Err(anyhow!("Unsupported .vpk version.")),
         }
 
         let end_of_directory = reader.position()? + (tree_size as u64);
-
-
 
         enum ArchiveStoreEntry {
             Dir,
@@ -164,13 +169,19 @@ impl<F: Read + Seek> VpkArchive<F> {
 
         loop {
             let ext = reader.read_string(None)?;
-            if ext.is_empty() { break; }
+            if ext.is_empty() {
+                break;
+            }
             loop {
                 let path = reader.read_string(None)?;
-                if path.is_empty() { break; }
+                if path.is_empty() {
+                    break;
+                }
                 loop {
                     let name = reader.read_string(None)?;
-                    if name.is_empty() { break; }
+                    if name.is_empty() {
+                        break;
+                    }
 
                     let _crc = reader.read::<u32>()?;
                     let preload_size = reader.read::<u16>()?;
@@ -182,12 +193,24 @@ impl<F: Read + Seek> VpkArchive<F> {
                     }
                     let preload = reader.read_vec::<u8>(preload_size as usize)?;
 
-                    let filename = if path.trim().is_empty() { format!("{}.{}", name, ext) } else { format!("{}/{}.{}", path, name, ext) };
+                    let filename = if path.trim().is_empty() {
+                        format!("{}.{}", name, ext)
+                    } else {
+                        format!("{}/{}.{}", path, name, ext)
+                    };
 
                     stores.push(ArchiveStore {
-                        archive: if archive_index == 0x7FFF { ArchiveStoreEntry::Dir } else { ArchiveStoreEntry::Entry(archive_index) },
+                        archive: if archive_index == 0x7FFF {
+                            ArchiveStoreEntry::Dir
+                        } else {
+                            ArchiveStoreEntry::Entry(archive_index)
+                        },
                         path: filename,
-                        offset: if archive_index == 0x7FFF { offset + (end_of_directory as u32) } else { offset },
+                        offset: if archive_index == 0x7FFF {
+                            offset + (end_of_directory as u32)
+                        } else {
+                            offset
+                        },
                         size,
                         preload,
                     });
@@ -195,29 +218,36 @@ impl<F: Read + Seek> VpkArchive<F> {
             }
         }
 
-
-
         let archive_dir = Arc::new(Mutex::new(vpk_files.dir));
-        let archive_entries = vpk_files.entries.into_iter().map(|f| Arc::new(Mutex::new(f))).collect::<Vec<_>>();
+        let archive_entries = vpk_files
+            .entries
+            .into_iter()
+            .map(|f| Arc::new(Mutex::new(f)))
+            .collect::<Vec<_>>();
 
-        let entries = stores.into_iter().map(|s| {
-            let archive = match s.archive {
-                ArchiveStoreEntry::Dir => Arc::clone(&archive_dir),
-                ArchiveStoreEntry::Entry(index) => Arc::clone(&archive_entries[index as usize]),
-            };
-            (s.path, VpkFile::new(archive, s.offset as u64, s.size as u64, s.preload))
-        }).collect::<Vec<_>>();
+        let entries = stores
+            .into_iter()
+            .map(|s| {
+                let archive = match s.archive {
+                    ArchiveStoreEntry::Dir => Arc::clone(&archive_dir),
+                    ArchiveStoreEntry::Entry(index) => Arc::clone(&archive_entries[index as usize]),
+                };
+                (
+                    s.path,
+                    VpkFile::new(archive, s.offset as u64, s.size as u64, s.preload),
+                )
+            })
+            .collect::<Vec<_>>();
 
         Ok(VpkArchive::new(entries)?)
     }
 }
 
-
-
 impl<F: Read + Seek> crate::util::virtual_fs::VirtualFsInner<VpkFile<F>> for VpkArchive<F> {
-    fn read(&mut self, path: &str) -> Result<crate::util::virtual_fs::VirtualFsInnerEntry<VpkFile<F>>> {
+    fn read(
+        &mut self,
+        path: &str,
+    ) -> Result<crate::util::virtual_fs::VirtualFsInnerEntry<VpkFile<F>>> {
         self.fs.read(path)
     }
 }
-
-

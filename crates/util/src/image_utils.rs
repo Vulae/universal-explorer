@@ -1,8 +1,5 @@
-
-use std::path::PathBuf;
 use image::DynamicImage;
-
-
+use std::path::PathBuf;
 
 pub fn filename_hint<P: Into<PathBuf>>(path: Option<P>) -> Option<String> {
     match path {
@@ -12,12 +9,10 @@ pub fn filename_hint<P: Into<PathBuf>>(path: Option<P>) -> Option<String> {
                 Some(stem) => stem.to_str().map(|s| s.to_string()),
                 _ => None,
             }
-        },
+        }
         _ => None,
     }
 }
-
-
 
 #[derive(Debug, Clone, Copy)]
 pub enum SizeHint {
@@ -30,14 +25,18 @@ impl SizeHint {
     /// If width & height satisfies this SizeHint's constraints.
     pub fn satisfies(&self, width: u32, height: u32) -> bool {
         match self {
-            SizeHint::SizeBoth(hint_width, hint_height) => width <= *hint_width && height <= *hint_height,
-            SizeHint::SizeEither(hint_width, hint_height) => width <= *hint_width || height <= *hint_height,
+            SizeHint::SizeBoth(hint_width, hint_height) => {
+                width <= *hint_width && height <= *hint_height
+            }
+            SizeHint::SizeEither(hint_width, hint_height) => {
+                width <= *hint_width || height <= *hint_height
+            }
             SizeHint::Pixels(hint_pixels) => (width as u64) * (height as u64) <= *hint_pixels,
         }
     }
 
     /// Rescale width & height to biggest size of constraints.
-    /// 
+    ///
     /// Will keep aspect ratio, but not perfectly due to integer imprecision.
     pub fn rescale(&self, width: u32, height: u32) -> (u32, u32) {
         match self {
@@ -79,9 +78,13 @@ impl SizeHint {
     }
 
     /// Downscale image to SizeHint::rescale size.
-    /// 
+    ///
     /// If size is already smaller than the new downscale size, will return original image.
-    pub fn downscale_image(&self, image: DynamicImage, filter: image::imageops::FilterType) -> DynamicImage {
+    pub fn downscale_image(
+        &self,
+        image: DynamicImage,
+        filter: image::imageops::FilterType,
+    ) -> DynamicImage {
         let (new_width, new_height) = self.rescale(image.width(), image.height());
         if new_width < image.width() || new_height < image.height() {
             image.resize_exact(new_width, new_height, filter)
@@ -90,5 +93,3 @@ impl SizeHint {
         }
     }
 }
-
-

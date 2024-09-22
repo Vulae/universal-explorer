@@ -1,22 +1,16 @@
-
-use std::{io::{self, Read, Seek}, path::PathBuf, sync::{Arc, Mutex}};
 use anyhow::Result;
-
-
-
-
+use std::{
+    io::{self, Read, Seek},
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 pub fn filename<P: Into<PathBuf>>(path: P) -> Option<String> {
     let path: PathBuf = path.into();
-    path
-        .file_name()
+    path.file_name()
         .map(|s| s.to_str().map(|s| s.to_owned()))
         .flatten()
 }
-
-
-
-
 
 pub struct InnerFile<F: Read + Seek> {
     file: Arc<Mutex<F>>,
@@ -27,7 +21,12 @@ pub struct InnerFile<F: Read + Seek> {
 
 impl<F: Read + Seek> InnerFile<F> {
     pub fn new(file: Arc<Mutex<F>>, offset: u64, size: u64) -> Self {
-        Self { file, offset, size, pointer: 0 }
+        Self {
+            file,
+            offset,
+            size,
+            pointer: 0,
+        }
     }
 }
 
@@ -50,10 +49,17 @@ impl<F: Read + Seek> Seek for InnerFile<F> {
             io::SeekFrom::Start(offset) => Some(offset),
             io::SeekFrom::End(offset) => self.size.checked_add_signed(offset),
             io::SeekFrom::Current(offset) => self.pointer.checked_add_signed(offset),
-        }).ok_or(std::io::Error::new(std::io::ErrorKind::InvalidInput, "seek u64 overflow"))?;
+        })
+        .ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "seek u64 overflow",
+        ))?;
 
         if new_pointer > self.size {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "seek out of bounds"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "seek out of bounds",
+            ));
         }
 
         self.pointer = new_pointer;
@@ -63,11 +69,14 @@ impl<F: Read + Seek> Seek for InnerFile<F> {
 
 impl<F: Read + Seek> Clone for InnerFile<F> {
     fn clone(&self) -> Self {
-        Self { file: self.file.clone(), offset: self.offset, size: self.size, pointer: self.pointer }
+        Self {
+            file: self.file.clone(),
+            offset: self.offset,
+            size: self.size,
+            pointer: self.pointer,
+        }
     }
 }
-
-
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct FileSize(u64);
@@ -98,5 +107,3 @@ impl FileSize {
         Self::from_kibibytes(mebibytes * 1024)
     }
 }
-
-

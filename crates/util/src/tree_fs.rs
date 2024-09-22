@@ -1,10 +1,7 @@
-
+use anyhow::{anyhow, Result};
 use std::io::{Read, Seek};
-use anyhow::{Result, anyhow};
 
 use crate::virtual_fs;
-
-
 
 enum TreeNode<F: Read + Seek + Clone> {
     File(F),
@@ -64,15 +61,15 @@ impl<F: Read + Seek + Clone> TreeNode<F> {
     }
 }
 
-
-
 pub struct TreeFs<F: Read + Seek + Clone> {
     node: TreeNode<F>,
 }
 
 impl<F: Read + Seek + Clone> TreeFs<F> {
     pub fn new(entries: Vec<(String, F)>) -> Result<Self> {
-        Ok(Self { node: TreeNode::from_entries(entries)? })
+        Ok(Self {
+            node: TreeNode::from_entries(entries)?,
+        })
     }
 }
 
@@ -82,9 +79,15 @@ impl<F: Read + Seek + Clone> virtual_fs::VirtualFsInner<F> for TreeFs<F> {
 
         let mut current = &self.node;
         while let Some(component) = components.next() {
-            if component.is_empty() { continue; }
+            if component.is_empty() {
+                continue;
+            }
             if let TreeNode::Directory(entries) = current {
-                current = &entries.iter().find(|(name, _)| name == component).unwrap().1;
+                current = &entries
+                    .iter()
+                    .find(|(name, _)| name == component)
+                    .unwrap()
+                    .1;
             } else {
                 return Err(anyhow!("Failed to read file from tree"));
             }
@@ -92,9 +95,9 @@ impl<F: Read + Seek + Clone> virtual_fs::VirtualFsInner<F> for TreeFs<F> {
 
         Ok(match current {
             TreeNode::File(file) => virtual_fs::VirtualFsInnerEntry::File(file.clone()),
-            TreeNode::Directory(entries) => virtual_fs::VirtualFsInnerEntry::Directory(entries.iter().map(|e| e.0.clone()).collect::<Vec<_>>()),
+            TreeNode::Directory(entries) => virtual_fs::VirtualFsInnerEntry::Directory(
+                entries.iter().map(|e| e.0.clone()).collect::<Vec<_>>(),
+            ),
         })
     }
 }
-
-

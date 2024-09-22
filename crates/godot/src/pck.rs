@@ -1,13 +1,13 @@
-
 // https://github.com/Bioruebe/godotdec/blob/master/godotdec/Program.cs
 
-use std::{io::{Read, Seek}, sync::{Arc, Mutex}};
 use anyhow::{anyhow, Result};
 use bitflags::bitflags;
 use regex::Regex;
+use std::{
+    io::{Read, Seek},
+    sync::{Arc, Mutex},
+};
 use util::{file_utils::InnerFile, tree_fs::TreeFs};
-
-
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -21,26 +21,19 @@ bitflags! {
     }
 }
 
-
-
 fn fix_path(path: String) -> Result<String> {
     let path = path.trim_end_matches('\0');
 
     let path_regex = Regex::new(r"^(.+?):\/\/(.+)$")?;
 
     if let Some(caps) = path_regex.captures(&path) {
-        let (base, rest) = (
-            caps.get(1).unwrap().as_str(),
-            caps.get(2).unwrap().as_str(),
-        );
+        let (base, rest) = (caps.get(1).unwrap().as_str(), caps.get(2).unwrap().as_str());
 
         return Ok(format!("{}/{}", base, rest));
     }
 
     return Err(anyhow!("Invalid path"));
 }
-
-
 
 pub struct GodotPck<F: Read + Seek> {
     fs: TreeFs<InnerFile<F>>,
@@ -60,7 +53,10 @@ impl<F: Read + Seek> GodotPck<F> {
 
         let (flags, files_base_offset) = match pak_version {
             1 => (GodotPckArchiveFlags::empty(), 0),
-            2 => (GodotPckArchiveFlags::from_bits_retain(reader.read::<u32>()?), reader.read::<u64>()?),
+            2 => (
+                GodotPckArchiveFlags::from_bits_retain(reader.read::<u32>()?),
+                reader.read::<u64>()?,
+            ),
             _ => return Err(anyhow!("GodotPck version {} not supported.", pak_version)),
         };
         if flags.contains(GodotPckArchiveFlags::ENCRYPTED_ARCHIVE) {
@@ -88,7 +84,10 @@ impl<F: Read + Seek> GodotPck<F> {
                 _ => unreachable!(),
             };
             if flags.contains(GodotPckFileFlags::ENCRYPTED_FILE) {
-                println!("GodotPck encrypted file excluded from archive. \"{}\"", path);
+                println!(
+                    "GodotPck encrypted file excluded from archive. \"{}\"",
+                    path
+                );
                 continue;
             }
 
@@ -107,18 +106,17 @@ impl<F: Read + Seek> GodotPck<F> {
                             InnerFile::new(Arc::clone(&file), offset, size),
                         ))
                     })
-                    .collect::<Result<Vec<_>>>()?
+                    .collect::<Result<Vec<_>>>()?,
             )?,
         })
     }
 }
 
-
-
 impl<F: Read + Seek> crate::util::virtual_fs::VirtualFsInner<InnerFile<F>> for GodotPck<F> {
-    fn read(&mut self, path: &str) -> Result<crate::util::virtual_fs::VirtualFsInnerEntry<InnerFile<F>>> {
+    fn read(
+        &mut self,
+        path: &str,
+    ) -> Result<crate::util::virtual_fs::VirtualFsInnerEntry<InnerFile<F>>> {
         self.fs.read(path)
     }
 }
-
-

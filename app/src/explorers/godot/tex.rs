@@ -1,11 +1,12 @@
-
-use std::{fs::File, io::{Read, Seek}, path::PathBuf};
+use crate::{app::Explorer, explorers::image::ImageExplorer};
 use anyhow::Result;
 use image::DynamicImage;
+use std::{
+    fs::File,
+    io::{Read, Seek},
+    path::PathBuf,
+};
 use uuid::Uuid;
-use crate::{app::Explorer, explorers::image::ImageExplorer};
-
-
 
 pub struct GodotTexExplorer {
     explorer: ImageExplorer,
@@ -13,7 +14,9 @@ pub struct GodotTexExplorer {
 
 impl GodotTexExplorer {
     pub fn new(image: DynamicImage, name: Option<String>) -> Self {
-        Self { explorer: ImageExplorer::new(image, name) }
+        Self {
+            explorer: ImageExplorer::new(image, name),
+        }
     }
 
     pub fn file<F: Read + Seek>(mut file: F, filename: Option<String>) -> Result<Self> {
@@ -27,10 +30,7 @@ impl GodotTexExplorer {
 
     pub fn open<P: Into<PathBuf>>(path: P) -> Result<Self> {
         let path: PathBuf = path.into();
-        Self::file(
-            &mut File::open(&path)?,
-            util::file_utils::filename(&path),
-        )
+        Self::file(&mut File::open(&path)?, util::file_utils::filename(&path))
     }
 }
 
@@ -47,5 +47,3 @@ impl Explorer for GodotTexExplorer {
         self.explorer.ui(ui);
     }
 }
-
-

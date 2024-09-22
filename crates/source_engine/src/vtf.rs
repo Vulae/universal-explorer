@@ -1,11 +1,14 @@
-
-use std::{convert::TryInto, io::{Read, Seek}};
-use image::{DynamicImage, GrayAlphaImage, GrayImage, ImageBuffer, LumaA, Pixel, Rgb, RgbImage, Rgba, RgbaImage};
 use anyhow::{anyhow, Result};
 use bitflags::bitflags;
+use image::{
+    DynamicImage, GrayAlphaImage, GrayImage, ImageBuffer, LumaA, Pixel, Rgb, RgbImage, Rgba,
+    RgbaImage,
+};
+use std::{
+    convert::TryInto,
+    io::{Read, Seek},
+};
 use util::image_utils::SizeHint;
-
-
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -35,7 +38,7 @@ bitflags! {
         const NODEBUGOVERRIDE = 0x00020000;
         const SINGLECOPY	= 0x00040000;
         const PRE_SRGB = 0x00080000;
-        
+
         const UNUSED_00100000 = 0x00100000;
         const UNUSED_00200000 = 0x00200000;
         const UNUSED_00400000 = 0x00400000;
@@ -57,40 +60,38 @@ bitflags! {
     }
 }
 
-
-
 #[derive(Debug, Clone, Copy)]
 #[repr(i32)]
 #[allow(non_camel_case_types)]
 pub enum TextureFormat {
     NONE = -1, // TODO: Probably want to do something different with NONE format.
-	RGBA8888 = 0,
-	ABGR8888 = 1,
-	RGB888 = 2,
-	BGR888 = 3,
-	RGB565 = 4,
-	I8 = 5,
-	IA88 = 6,
-	P8 = 7, // ?????
-	A8 = 8,
-	RGB888_BLUESCREEN = 9,
-	BGR888_BLUESCREEN = 10,
-	ARGB8888 = 11,
-	BGRA8888 = 12,
-	DXT1 = 13,
-	DXT3 = 14,
-	DXT5 = 15,
-	BGRX8888 = 16,
-	BGR565 = 17,
-	BGRX5551 = 18,
-	BGRA4444 = 19,
-	DXT1_ONEBITALPHA = 20,
-	BGRA5551 = 21,
-	UV88 = 22,
-	UVWQ8888 = 23,
-	RGBA16161616F = 24,
-	RGBA16161616 = 25,
-	UVLX8888 = 26,
+    RGBA8888 = 0,
+    ABGR8888 = 1,
+    RGB888 = 2,
+    BGR888 = 3,
+    RGB565 = 4,
+    I8 = 5,
+    IA88 = 6,
+    P8 = 7, // ?????
+    A8 = 8,
+    RGB888_BLUESCREEN = 9,
+    BGR888_BLUESCREEN = 10,
+    ARGB8888 = 11,
+    BGRA8888 = 12,
+    DXT1 = 13,
+    DXT3 = 14,
+    DXT5 = 15,
+    BGRX8888 = 16,
+    BGR565 = 17,
+    BGRX5551 = 18,
+    BGRA4444 = 19,
+    DXT1_ONEBITALPHA = 20,
+    BGRA5551 = 21,
+    UV88 = 22,
+    UVWQ8888 = 23,
+    RGBA16161616F = 24,
+    RGBA16161616 = 25,
+    UVLX8888 = 26,
 }
 
 impl TextureFormat {
@@ -112,7 +113,7 @@ impl TextureFormat {
                 //     TextureFormat::DXT1
                 // }
                 TextureFormat::DXT1_ONEBITALPHA
-            },
+            }
             format => *format,
         }
     }
@@ -153,8 +154,6 @@ impl TextureFormat {
     }
 }
 
-
-
 #[derive(Debug, Clone)]
 pub struct VtfTexture {
     width: u32,
@@ -169,23 +168,36 @@ impl VtfTexture {
         if data.len() != expected_bytes {
             panic!("VTF texture created with invalid data buffer length. {:?} {}x{} {} bytes != {} buffer bytes", format, width, height, expected_bytes, data.len());
         }
-        VtfTexture { width, height, format, data: Vec::from(data) }
+        VtfTexture {
+            width,
+            height,
+            format,
+            data: Vec::from(data),
+        }
     }
 
-    pub fn width(&self) -> u32 { self.width }
-    pub fn height(&self) -> u32 { self.height }
-    pub fn format(&self) -> TextureFormat { self.format }
-
-
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+    pub fn format(&self) -> TextureFormat {
+        self.format
+    }
 
     pub fn to_image(&self) -> DynamicImage {
-        
         // The unsupported image is just temporary for until all image formats are supported.
         fn unsupported_format_image() -> DynamicImage {
             image::load_from_memory(include_bytes!("./unsupported_format.png")).unwrap()
         }
 
-        fn swizzle_image<const S: usize, T, P, F>(data: &[u8], width: u32, height: u32, mut swizzle: F) -> ImageBuffer<P, Vec<T>>
+        fn swizzle_image<const S: usize, T, P, F>(
+            data: &[u8],
+            width: u32,
+            height: u32,
+            mut swizzle: F,
+        ) -> ImageBuffer<P, Vec<T>>
         where
             T: image::Primitive,
             P: Pixel<Subpixel = T> + 'static,
@@ -238,8 +250,8 @@ impl VtfTexture {
 
         #[inline]
         fn bluescreen(c: Rgb<u8>) -> Rgba<u8> {
-            if c == Rgb([ 0, 0, 255 ]) {
-                Rgba([ 0, 0, 0, 0 ])
+            if c == Rgb([0, 0, 255]) {
+                Rgba([0, 0, 0, 0])
             } else {
                 c.to_rgba()
             }
@@ -247,29 +259,88 @@ impl VtfTexture {
 
         match self.format {
             TextureFormat::NONE => unsupported_format_image(),
-            TextureFormat::RGBA8888 => DynamicImage::ImageRgba8(RgbaImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
-            TextureFormat::ABGR8888 => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 4]| Rgba([ c[3], c[2], c[1], c[0] ]))),
-            TextureFormat::RGB888 => DynamicImage::ImageRgb8(RgbImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
-            TextureFormat::BGR888 => DynamicImage::ImageRgb8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 3]| Rgb([ c[2], c[1], c[0] ]))),
-            TextureFormat::RGB565 => DynamicImage::ImageRgb8(
-                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
-                    let v = u16::from_le_bytes(*c);
-                    Rgb([ extract(v, 0, 5), extract(v, 5, 6), extract(v, 11, 5) ])
-                })
+            TextureFormat::RGBA8888 => DynamicImage::ImageRgba8(
+                RgbaImage::from_raw(self.width, self.height, self.data.clone()).unwrap(),
             ),
-            TextureFormat::I8 => DynamicImage::ImageLuma8(GrayImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
-            TextureFormat::IA88 => DynamicImage::ImageLumaA8(GrayAlphaImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
+            TextureFormat::ABGR8888 => DynamicImage::ImageRgba8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 4]| Rgba([c[3], c[2], c[1], c[0]]),
+            )),
+            TextureFormat::RGB888 => DynamicImage::ImageRgb8(
+                RgbImage::from_raw(self.width, self.height, self.data.clone()).unwrap(),
+            ),
+            TextureFormat::BGR888 => DynamicImage::ImageRgb8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 3]| Rgb([c[2], c[1], c[0]]),
+            )),
+            TextureFormat::RGB565 => DynamicImage::ImageRgb8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 2]| {
+                    let v = u16::from_le_bytes(*c);
+                    Rgb([extract(v, 0, 5), extract(v, 5, 6), extract(v, 11, 5)])
+                },
+            )),
+            TextureFormat::I8 => DynamicImage::ImageLuma8(
+                GrayImage::from_raw(self.width, self.height, self.data.clone()).unwrap(),
+            ),
+            TextureFormat::IA88 => DynamicImage::ImageLumaA8(
+                GrayAlphaImage::from_raw(self.width, self.height, self.data.clone()).unwrap(),
+            ),
             TextureFormat::P8 => unsupported_format_image(), // ?????
             // There's no such thing as ImageA8, So we just use ImageLumaA8 & set Luma to be 0.
-            TextureFormat::A8 => DynamicImage::ImageLumaA8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 1]| LumaA([ 0, c[0] ]))),
-            TextureFormat::RGB888_BLUESCREEN => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 3]| bluescreen(Rgb([ c[0], c[1], c[2] ])))),
-            TextureFormat::BGR888_BLUESCREEN => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 3]| bluescreen(Rgb([ c[2], c[1], c[0] ])))),
-            TextureFormat::ARGB8888 => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 4]| Rgba([ c[3], c[0], c[1], c[2] ]))),
+            TextureFormat::A8 => DynamicImage::ImageLumaA8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 1]| LumaA([0, c[0]]),
+            )),
+            TextureFormat::RGB888_BLUESCREEN => DynamicImage::ImageRgba8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 3]| bluescreen(Rgb([c[0], c[1], c[2]])),
+            )),
+            TextureFormat::BGR888_BLUESCREEN => DynamicImage::ImageRgba8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 3]| bluescreen(Rgb([c[2], c[1], c[0]])),
+            )),
+            TextureFormat::ARGB8888 => DynamicImage::ImageRgba8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 4]| Rgba([c[3], c[0], c[1], c[2]]),
+            )),
             // FIXME: This may also be an HDR texture based on texture flags.
-            TextureFormat::BGRA8888 => DynamicImage::ImageRgba8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 4]| Rgba([ c[2], c[1], c[0], c[3] ]))),
-            TextureFormat::DXT1 => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc1(&self.data, self.width(), self.height(), image::Rgba([ 0, 0, 0, 255 ]))),
-            TextureFormat::DXT3 => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc2(&self.data, self.width(), self.height())),
-            TextureFormat::DXT5 => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc3(&self.data, self.width(), self.height())),
+            TextureFormat::BGRA8888 => DynamicImage::ImageRgba8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 4]| Rgba([c[2], c[1], c[0], c[3]]),
+            )),
+            TextureFormat::DXT1 => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc1(
+                &self.data,
+                self.width(),
+                self.height(),
+                image::Rgba([0, 0, 0, 255]),
+            )),
+            TextureFormat::DXT3 => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc2(
+                &self.data,
+                self.width(),
+                self.height(),
+            )),
+            TextureFormat::DXT5 => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc3(
+                &self.data,
+                self.width(),
+                self.height(),
+            )),
             TextureFormat::BGRX8888 => DynamicImage::ImageRgb8({
                 let mut malformed = false;
                 swizzle_image(&self.data, self.width, self.height, |c: &[u8; 4]| {
@@ -277,15 +348,18 @@ impl VtfTexture {
                         malformed = true;
                         println!("BGRX8888 is malformed, has alpha channel data.");
                     }
-                    Rgb([ c[2], c[1], c[0] ])
+                    Rgb([c[2], c[1], c[0]])
                 })
             }),
-            TextureFormat::BGR565 => DynamicImage::ImageRgb8(
-                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
+            TextureFormat::BGR565 => DynamicImage::ImageRgb8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 2]| {
                     let v = u16::from_le_bytes(*c);
-                    Rgb([ extract(v, 11, 5), extract(v, 5, 6), extract(v, 0, 5) ])
-                })
-            ),
+                    Rgb([extract(v, 11, 5), extract(v, 5, 6), extract(v, 0, 5)])
+                },
+            )),
             TextureFormat::BGRX5551 => DynamicImage::ImageRgb8({
                 let mut malformed = false;
                 swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
@@ -294,40 +368,84 @@ impl VtfTexture {
                         malformed = true;
                         println!("BGRX5551 is malformed, has alpha channel data.");
                     }
-                    Rgb([ extract(v, 10, 5), extract(v, 5, 5), extract(v, 0, 5) ])
+                    Rgb([extract(v, 10, 5), extract(v, 5, 5), extract(v, 0, 5)])
                 })
             }),
-            TextureFormat::BGRA4444 => DynamicImage::ImageRgba8(
-                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
+            TextureFormat::BGRA4444 => DynamicImage::ImageRgba8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 2]| {
                     let v = u16::from_le_bytes(*c);
-                    Rgba([ extract(v, 8, 4), extract(v, 4, 4), extract(v, 0, 4), extract(v, 12, 4) ])
-                })
-            ),
-            TextureFormat::DXT1_ONEBITALPHA => DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc1(&self.data, self.width(), self.height(), image::Rgba([ 0, 0, 0, 0 ]))),
-            TextureFormat::BGRA5551 => DynamicImage::ImageRgba8(
-                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| {
+                    Rgba([
+                        extract(v, 8, 4),
+                        extract(v, 4, 4),
+                        extract(v, 0, 4),
+                        extract(v, 12, 4),
+                    ])
+                },
+            )),
+            TextureFormat::DXT1_ONEBITALPHA => {
+                DynamicImage::ImageRgba8(crate::util::texture::bc::decode_bc1(
+                    &self.data,
+                    self.width(),
+                    self.height(),
+                    image::Rgba([0, 0, 0, 0]),
+                ))
+            }
+            TextureFormat::BGRA5551 => DynamicImage::ImageRgba8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 2]| {
                     let v = u16::from_le_bytes(*c);
-                    Rgba([ extract(v, 10, 5), extract(v, 5, 5), extract(v, 0, 5), extract(v, 15, 1) ])
-                })
+                    Rgba([
+                        extract(v, 10, 5),
+                        extract(v, 5, 5),
+                        extract(v, 0, 5),
+                        extract(v, 15, 1),
+                    ])
+                },
+            )),
+            TextureFormat::UV88 => DynamicImage::ImageRgb8(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 2]| Rgb([c[0], c[1], 0]),
+            )),
+            TextureFormat::UVWQ8888 => DynamicImage::ImageRgba8(
+                RgbaImage::from_raw(self.width, self.height, self.data.clone()).unwrap(),
             ),
-            TextureFormat::UV88 => DynamicImage::ImageRgb8(swizzle_image(&self.data, self.width, self.height, |c: &[u8; 2]| Rgb([ c[0], c[1], 0 ]))),
-            TextureFormat::UVWQ8888 =>  DynamicImage::ImageRgba8(RgbaImage::from_raw(self.width, self.height, self.data.clone()).unwrap()),
-            TextureFormat::RGBA16161616F => DynamicImage::ImageRgba16( // Is this supposed to be the same as RGBA16161616 ???
+            TextureFormat::RGBA16161616F => DynamicImage::ImageRgba16(
+                // Is this supposed to be the same as RGBA16161616 ???
                 swizzle_image(&self.data, self.width, self.height, |c: &[u8; 8]| {
-                    Rgba([ u16::from_le_bytes([ c[0], c[1] ]), u16::from_le_bytes([ c[2], c[3] ]), u16::from_le_bytes([ c[4], c[5] ]), u16::from_le_bytes([ c[6], c[7] ]) ])
-                })
+                    Rgba([
+                        u16::from_le_bytes([c[0], c[1]]),
+                        u16::from_le_bytes([c[2], c[3]]),
+                        u16::from_le_bytes([c[4], c[5]]),
+                        u16::from_le_bytes([c[6], c[7]]),
+                    ])
+                }),
             ),
-            TextureFormat::RGBA16161616 => DynamicImage::ImageRgba16(
-                swizzle_image(&self.data, self.width, self.height, |c: &[u8; 8]| {
-                    Rgba([ u16::from_le_bytes([ c[0], c[1] ]), u16::from_le_bytes([ c[2], c[3] ]), u16::from_le_bytes([ c[4], c[5] ]), u16::from_le_bytes([ c[6], c[7] ]) ])
-                })
-            ),
-            TextureFormat::UVLX8888 => DynamicImage::ImageRgba8(RgbaImage::from_raw(self.width, self.height, self.data.clone()).unwrap()), // TODO: Probably warn for malformed because X component.
+            TextureFormat::RGBA16161616 => DynamicImage::ImageRgba16(swizzle_image(
+                &self.data,
+                self.width,
+                self.height,
+                |c: &[u8; 8]| {
+                    Rgba([
+                        u16::from_le_bytes([c[0], c[1]]),
+                        u16::from_le_bytes([c[2], c[3]]),
+                        u16::from_le_bytes([c[4], c[5]]),
+                        u16::from_le_bytes([c[6], c[7]]),
+                    ])
+                },
+            )),
+            TextureFormat::UVLX8888 => DynamicImage::ImageRgba8(
+                RgbaImage::from_raw(self.width, self.height, self.data.clone()).unwrap(),
+            ), // TODO: Probably warn for malformed because X component.
         }
     }
 }
-
-
 
 #[derive(Debug, Clone)]
 pub struct Vtf {
@@ -344,19 +462,38 @@ pub struct Vtf {
 }
 
 impl Vtf {
-
     /// May have different format than Vtf::format()
-    pub fn thumbnail(&self) -> Option<&VtfTexture> { self.thumbnail.as_ref() }
-    pub fn format(&self) -> TextureFormat { self.format }
-    pub fn width(&self) -> u32 { self.width }
-    pub fn height(&self) -> u32 { self.height }
-    pub fn mipmaps(&self) -> u32 { self.mipmaps as u32 }
-    pub fn frames(&self) -> u32 { self.frames as u32 }
-    pub fn faces(&self) -> u32 { self.faces as u32 }
-    pub fn slices(&self) -> u32 { self.slices as u32 }
+    pub fn thumbnail(&self) -> Option<&VtfTexture> {
+        self.thumbnail.as_ref()
+    }
+    pub fn format(&self) -> TextureFormat {
+        self.format
+    }
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+    pub fn mipmaps(&self) -> u32 {
+        self.mipmaps as u32
+    }
+    pub fn frames(&self) -> u32 {
+        self.frames as u32
+    }
+    pub fn faces(&self) -> u32 {
+        self.faces as u32
+    }
+    pub fn slices(&self) -> u32 {
+        self.slices as u32
+    }
 
     pub fn texture_index(&self, mipmap: u32, frame: u32, face: u32, slice: u32) -> Option<usize> {
-        if mipmap >= self.mipmaps() || frame >= self.frames() || face >= self.faces() || slice >= self.slices() {
+        if mipmap >= self.mipmaps()
+            || frame >= self.frames()
+            || face >= self.faces()
+            || slice >= self.slices()
+        {
             return None;
         }
 
@@ -366,27 +503,32 @@ impl Vtf {
         let slice = slice as usize;
 
         Some(
-            slice +
-            face * (self.slices() as usize) +
-            frame * (self.faces() as usize) * (self.slices() as usize) +
-            mipmap * (self.frames() as usize) * (self.faces() as usize) * (self.slices() as usize)
+            slice
+                + face * (self.slices() as usize)
+                + frame * (self.faces() as usize) * (self.slices() as usize)
+                + mipmap
+                    * (self.frames() as usize)
+                    * (self.faces() as usize)
+                    * (self.slices() as usize),
         )
     }
 
     pub fn total_num_textures(&self) -> usize {
-        (self.mipmaps() as usize) * (self.frames() as usize) * (self.faces() as usize) * (self.slices() as usize)
+        (self.mipmaps() as usize)
+            * (self.frames() as usize)
+            * (self.faces() as usize)
+            * (self.slices() as usize)
     }
 
     pub fn texture(&self, mipmap: u32, frame: u32, face: u32, slice: u32) -> Option<&VtfTexture> {
-        self.textures.get(self.texture_index(mipmap, frame, face, slice)?)
+        self.textures
+            .get(self.texture_index(mipmap, frame, face, slice)?)
     }
 
     fn into_texture(self, mipmap: u32, frame: u32, face: u32, slice: u32) -> Option<VtfTexture> {
         let index = self.texture_index(mipmap, frame, face, slice)?;
         self.textures.into_iter().nth(index)
     }
-
-
 
     pub fn load(mut data: impl Read + Seek) -> Result<Vtf> {
         data.rewind()?;
@@ -395,10 +537,24 @@ impl Vtf {
         let mut thumbnail = None;
         if let Some(lowres_offset) = header.lowres_offset {
             data.seek(std::io::SeekFrom::Start(lowres_offset as u64))?;
-            thumbnail = Vtf::read_thumbnail(&mut data, header.lowres_format, header.lowres_width as u32, header.lowres_height as u32)?;
+            thumbnail = Vtf::read_thumbnail(
+                &mut data,
+                header.lowres_format,
+                header.lowres_width as u32,
+                header.lowres_height as u32,
+            )?;
         }
         data.seek(std::io::SeekFrom::Start(header.highres_offset as u64))?;
-        let textures = Vtf::read_textures(&mut data, header.highres_format, header.width as u32, header.height as u32, header.mipmaps as u32, header.frames as u32, header.faces as u32, header.slices as u32)?;
+        let textures = Vtf::read_textures(
+            &mut data,
+            header.highres_format,
+            header.width as u32,
+            header.height as u32,
+            header.mipmaps as u32,
+            header.frames as u32,
+            header.faces as u32,
+            header.slices as u32,
+        )?;
 
         Ok(Vtf {
             format: header.highres_format,
@@ -414,25 +570,41 @@ impl Vtf {
         })
     }
 
-    fn read_texture(mut data: impl Read, format: TextureFormat, width: u32, height: u32) -> Result<VtfTexture> {
+    fn read_texture(
+        mut data: impl Read,
+        format: TextureFormat,
+        width: u32,
+        height: u32,
+    ) -> Result<VtfTexture> {
         let size = format.texture_byte_size(width, height);
         let mut buf = vec![0u8; size as usize];
         data.read(&mut buf)?;
         Ok(VtfTexture::new(width, height, format, &buf))
     }
 
-    fn read_thumbnail(data: impl Read, format: TextureFormat, width: u32, height: u32) -> Result<Option<VtfTexture>> {
+    fn read_thumbnail(
+        data: impl Read,
+        format: TextureFormat,
+        width: u32,
+        height: u32,
+    ) -> Result<Option<VtfTexture>> {
         let size = format.texture_byte_size(width, height);
         if size > 0 {
             Ok(Some(Vtf::read_texture(data, format, width, height)?))
-        } else { Ok(None) }
+        } else {
+            Ok(None)
+        }
     }
 
     fn read_textures(
         mut data: impl Read,
         format: TextureFormat,
-        width: u32, height: u32,
-        mipmaps: u32, frames: u32, faces: u32, slices: u32,
+        width: u32,
+        height: u32,
+        mipmaps: u32,
+        frames: u32,
+        faces: u32,
+        slices: u32,
     ) -> Result<Vec<VtfTexture>> {
         let mut textures: Vec<VtfTexture> = Vec::new();
         for mipmap in (0..mipmaps).rev() {
@@ -452,9 +624,16 @@ impl Vtf {
     fn read_specific_texture(
         mut data: impl Read + Seek,
         format: TextureFormat,
-        width: u32, height: u32,
-        mipmaps: u32, frames: u32, faces: u32, slices: u32,
-        target_mipmap: u32, target_frame: u32, target_face: u32, target_slice: u32,
+        width: u32,
+        height: u32,
+        mipmaps: u32,
+        frames: u32,
+        faces: u32,
+        slices: u32,
+        target_mipmap: u32,
+        target_frame: u32,
+        target_face: u32,
+        target_slice: u32,
     ) -> Result<VtfTexture> {
         let mut offset: u64 = 0;
         for mipmap in (0..mipmaps).rev() {
@@ -465,11 +644,15 @@ impl Vtf {
                     for slice in 0..slices {
                         let size = format.texture_byte_size(mip_width, mip_height);
 
-                        if mipmap != target_mipmap || frame != target_frame || face != target_face || slice != target_slice {
+                        if mipmap != target_mipmap
+                            || frame != target_frame
+                            || face != target_face
+                            || slice != target_slice
+                        {
                             offset += size;
                             continue;
                         }
-                        
+
                         data.seek_relative(offset as i64)?;
                         return Ok(Vtf::read_texture(&mut data, format, mip_width, mip_height)?);
                     }
@@ -479,15 +662,18 @@ impl Vtf {
         Err(anyhow!("Failed to read specific texture"))
     }
 
-
-
-    pub fn load_thumbnail(mut data: impl Read + Seek, hint: SizeHint) -> Result<Option<VtfTexture>> {
+    pub fn load_thumbnail(
+        mut data: impl Read + Seek,
+        hint: SizeHint,
+    ) -> Result<Option<VtfTexture>> {
         data.rewind()?;
         if let Ok(header) = VtfHeader::load(&mut data) {
-
             let mut mipmap = 0;
             while mipmap < header.mipmaps {
-                if hint.satisfies((header.width as u32) >> mipmap, (header.height as u32) >> mipmap) {
+                if hint.satisfies(
+                    (header.width as u32) >> mipmap,
+                    (header.height as u32) >> mipmap,
+                ) {
                     if mipmap > 0 {
                         // Go to previous mipmap so scaling is a bit more clean.
                         mipmap -= 1;
@@ -501,19 +687,22 @@ impl Vtf {
             Ok(Some(Vtf::read_specific_texture(
                 data,
                 header.highres_format,
-                header.width as u32, header.height as u32,
-                header.mipmaps as u32, header.frames as u32, header.faces as u32, header.slices as u32,
-                mipmap as u32, 0, 0, 0,
+                header.width as u32,
+                header.height as u32,
+                header.mipmaps as u32,
+                header.frames as u32,
+                header.faces as u32,
+                header.slices as u32,
+                mipmap as u32,
+                0,
+                0,
+                0,
             )?))
         } else {
             Ok(None)
         }
     }
 }
-
-
-
-
 
 enum VtfResource {
     Unknown([u8; 3], u8, u32),
@@ -537,8 +726,6 @@ impl VtfResource {
         }
     }
 }
-
-
 
 struct VtfHeader {
     version: [u32; 2],
@@ -588,8 +775,12 @@ impl VtfHeader {
             if version < [7, 5] && first_frame == 0xFFFF {
                 first_frame = 0;
                 7
-            } else { 6 }
-        } else { 1 };
+            } else {
+                6
+            }
+        } else {
+            1
+        };
         let lowres_format = TextureFormat::try_from(reader.read::<i32>()?)?.fix(&flags);
         let lowres_width = reader.read::<u8>()?;
         let lowres_height = reader.read::<u8>()?;
@@ -604,14 +795,14 @@ impl VtfHeader {
 
             let mut offset = header_size;
 
-            let lowres_size = lowres_format.texture_byte_size(lowres_width as u32, lowres_height as u32);
+            let lowres_size =
+                lowres_format.texture_byte_size(lowres_width as u32, lowres_height as u32);
             if lowres_size > 0 {
                 lowres_offset = Some(offset);
                 offset += lowres_size as u32;
             }
 
             highres_offset = offset;
-
         } else {
             is_resource_format = true;
 
@@ -635,7 +826,10 @@ impl VtfHeader {
                 lowres_offset = resource_lowres.lowres_offset();
             }
 
-            let resource_highres = resources.iter().find(|r| r.highres_offset().is_some()).ok_or(anyhow!("VTF texture does not have highres image data."))?;
+            let resource_highres = resources
+                .iter()
+                .find(|r| r.highres_offset().is_some())
+                .ok_or(anyhow!("VTF texture does not have highres image data."))?;
             highres_offset = resource_highres.highres_offset().unwrap();
         }
 
@@ -663,5 +857,3 @@ impl VtfHeader {
         })
     }
 }
-
-

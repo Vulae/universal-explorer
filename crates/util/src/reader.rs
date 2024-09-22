@@ -1,15 +1,13 @@
-
-use std::{convert::TryInto, io::{Read, Seek, SeekFrom}};
 use anyhow::{anyhow, Result};
-
-
+use std::{
+    convert::TryInto,
+    io::{Read, Seek, SeekFrom},
+};
 
 pub trait Primitive: Sized {
     fn read_from_le<R: Read>(reader: &mut Reader<R>) -> Result<Self>;
     fn read_from_be<R: Read>(reader: &mut Reader<R>) -> Result<Self>;
 }
-
-
 
 macro_rules! impl_primitive_number {
     ($type:ty) => {
@@ -59,8 +57,6 @@ impl_primitive_number!(i64);
 impl_primitive_number!(i128);
 impl_primitive_number!(f32);
 impl_primitive_number!(f64);
-
-
 
 pub enum Endianness {
     LittleEndian,
@@ -134,19 +130,22 @@ impl<T: Read> Reader<T> {
         let mut vec = Vec::new();
         match length {
             Some(length) => vec.append(&mut self.read_vec_le::<u8>(length)?),
-            None => {
-                loop {
-                    let byte = self.read_le::<u8>()?;
-                    if byte == 0x00 { break; }
-                    vec.push(byte);
+            None => loop {
+                let byte = self.read_le::<u8>()?;
+                if byte == 0x00 {
+                    break;
                 }
-            }
+                vec.push(byte);
+            },
         }
         Ok(String::from_utf8(vec)?)
     }
 
     pub fn read_length_string<P: Primitive + TryInto<usize>>(&mut self) -> Result<String> {
-        let length: usize = self.read::<P>()?.try_into().map_err(|_| anyhow!("Could not convert primitive to usize"))?;
+        let length: usize = self
+            .read::<P>()?
+            .try_into()
+            .map_err(|_| anyhow!("Could not convert primitive to usize"))?;
         Ok(self.read_string(Some(length))?)
     }
 
@@ -159,12 +158,11 @@ impl<T: Read> Reader<T> {
     }
 }
 
-
 impl<T: Read + Seek> Reader<T> {
     pub fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         Ok(self.data.seek(pos)?)
     }
-    
+
     pub fn rewind(&mut self) -> Result<()> {
         Ok(self.data.rewind()?)
     }

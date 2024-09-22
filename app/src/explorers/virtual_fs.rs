@@ -1,19 +1,20 @@
-
-use std::{collections::HashMap, io::{Read, Seek}};
-use crate::{app::{Explorer, SharedAppContext}, app_util, assets, loader};
+use crate::{
+    app::{Explorer, SharedAppContext},
+    app_util, assets, loader,
+};
 use anyhow::Result;
+use std::{
+    collections::HashMap,
+    io::{Read, Seek},
+};
 use util::virtual_fs::{FullPath, VirtualFs, VirtualFsDirectory, VirtualFsEntry, VirtualFsInner};
 use uuid::Uuid;
-
-
 
 #[derive(Debug, Clone, Default)]
 pub struct VirtualFsExplorerOptions {
     pub name: Option<String>,
     pub allow_download: bool,
 }
-
-
 
 pub struct VirtualFsExplorer<F: Read + Seek, I: VirtualFsInner<F>> {
     app_context: SharedAppContext,
@@ -32,7 +33,11 @@ pub struct VirtualFsExplorer<F: Read + Seek, I: VirtualFsInner<F>> {
 }
 
 impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer<F, I> {
-    pub fn new(app_context: SharedAppContext, mut fs: VirtualFs<F, I>, options: VirtualFsExplorerOptions) -> Result<Self> {
+    pub fn new(
+        app_context: SharedAppContext,
+        mut fs: VirtualFs<F, I>,
+        options: VirtualFsExplorerOptions,
+    ) -> Result<Self> {
         let view_directory = fs.root()?;
         Ok(Self {
             app_context,
@@ -51,22 +56,25 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
     fn update_new_icons(&mut self, ctx: &egui::Context) {
         for (path, icon) in self.new_icons.drain(..) {
             match icon {
-                loader::LoadedThumbnail::None => { }, // Keep as placeholder icon.
+                loader::LoadedThumbnail::None => {} // Keep as placeholder icon.
                 loader::LoadedThumbnail::Image(image) => {
                     let handle = app_util::image_utils::image_egui_handle(&image, ctx);
-                    let source = egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&handle));
+                    let source =
+                        egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&handle));
                     self.icon_handles.push(handle);
                     self.icons.insert(path, source);
-                },
+                }
                 loader::LoadedThumbnail::ImageSource(source) => {
                     self.icons.insert(path, source);
-                },
+                }
             }
         }
     }
 
     fn get_icon(&mut self, entry: &VirtualFsEntry<F, I>) -> egui::ImageSource {
-        const HINT: util::image_utils::SizeHint = util::image_utils::SizeHint::Pixels((EntryDisplay::THUMBNAIL_SIZE.x * EntryDisplay::THUMBNAIL_SIZE.y * 1.5) as u64);
+        const HINT: util::image_utils::SizeHint = util::image_utils::SizeHint::Pixels(
+            (EntryDisplay::THUMBNAIL_SIZE.x * EntryDisplay::THUMBNAIL_SIZE.y * 1.5) as u64,
+        );
 
         let path = entry.path().clone();
 
@@ -79,7 +87,7 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
         match entry {
             VirtualFsEntry::Directory(_) => {
                 self.icons.insert(path.clone(), assets::LUCIDE_FOLDER);
-            },
+            }
             VirtualFsEntry::File(file) => {
                 self.icons.insert(path.clone(), assets::LUCIDE_FILE);
 
@@ -90,20 +98,23 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
                 match loader::thumbnail_file(
                     file.clone(),
                     file.path().name().map(|s| s.to_owned()),
-                    HINT
+                    HINT,
                 ) {
                     Ok(icon) => {
                         self.new_icons.push((path.clone(), icon));
-                    },
+                    }
                     Err(err) => {
                         println!("Failed to load icon \"{}\"", path);
                         println!("{:#?}", err);
-                    },
+                    }
                 }
-            },
+            }
         }
 
-        self.icons.get(&path).map(|i| i.clone()).unwrap_or(assets::ERROR)
+        self.icons
+            .get(&path)
+            .map(|i| i.clone())
+            .unwrap_or(assets::ERROR)
     }
 
     fn entry_display(&mut self, ui: &mut egui::Ui, entry: VirtualFsEntry<F, I>) {
@@ -118,10 +129,10 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
                 VirtualFsEntry::File(file) => {
                     let name = file.path().name().map(|s| s.to_owned());
                     self.app_context.open_file(file.clone(), name).unwrap();
-                },
+                }
                 VirtualFsEntry::Directory(directory) => {
                     self.new_view_directory = Some(directory.clone());
-                },
+                }
             }
         }
 
@@ -130,7 +141,6 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
                 ui.output_mut(|o| o.copied_text = path.to_string());
             }
             if ui.button("Extract").clicked() {
-
                 let dialog = rfd::FileDialog::new()
                     .set_title(format!("Extract {}", path))
                     .set_file_name(path.name().unwrap_or("archive"))
@@ -143,7 +153,7 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
                             println!("Extract file to {:?}", save_path);
                             file.save(save_path).expect("Failed to save file");
                         }
-                    },
+                    }
                     VirtualFsEntry::Directory(directory) => {
                         if let Some(save_path) = dialog.pick_folder() {
                             // save_path.push(path.name().unwrap_or("archive"));
@@ -152,38 +162,51 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> VirtualFsExplorer
                         }
                     }
                 }
-
             }
         });
-
     }
 }
 
-impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for VirtualFsExplorer<F, I> {
+impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer
+    for VirtualFsExplorer<F, I>
+{
     fn uuid(&self) -> &Uuid {
         &self.uuid
     }
 
     fn title(&self) -> String {
-        self.options.name.clone().unwrap_or("Virtual Filesystem".to_owned())
+        self.options
+            .name
+            .clone()
+            .unwrap_or("Virtual Filesystem".to_owned())
     }
 
     fn ui(&mut self, ui: &mut egui::Ui) {
         self.update_new_icons(ui.ctx());
 
-        let view_entries = self.view_directory.entries().collect::<Result<Vec<_>>>().map(|view_entries| {
-            if self.search.len() > 0 {
-                view_entries.into_iter().filter(|entry| {
-                    if let Some(name) = entry.path().name() {
-                        glob_match::glob_match(&format!("*{}*", self.search.to_lowercase()), &name.to_lowercase())
-                    } else {
-                        false
-                    }
-                }).collect()
-            } else {
-                view_entries
-            }
-        });
+        let view_entries = self
+            .view_directory
+            .entries()
+            .collect::<Result<Vec<_>>>()
+            .map(|view_entries| {
+                if self.search.len() > 0 {
+                    view_entries
+                        .into_iter()
+                        .filter(|entry| {
+                            if let Some(name) = entry.path().name() {
+                                glob_match::glob_match(
+                                    &format!("*{}*", self.search.to_lowercase()),
+                                    &name.to_lowercase(),
+                                )
+                            } else {
+                                false
+                            }
+                        })
+                        .collect()
+                } else {
+                    view_entries
+                }
+            });
 
         egui::containers::Frame::none()
             .inner_margin(egui::Margin {
@@ -313,8 +336,6 @@ impl<F: Read + Seek + 'static, I: VirtualFsInner<F> + 'static> Explorer for Virt
     }
 }
 
-
-
 struct EntryDisplay<'a> {
     name: &'a str,
     icon: Option<&'a egui::ImageSource<'a>>,
@@ -322,7 +343,8 @@ struct EntryDisplay<'a> {
 
 impl<'a> EntryDisplay<'a> {
     const THUMBNAIL_SIZE: egui::Vec2 = egui::Vec2::new(64.0, 64.0);
-    const SIZE: egui::Vec2 = egui::Vec2::new(Self::THUMBNAIL_SIZE.x * 1.25, Self::THUMBNAIL_SIZE.y * 1.5);
+    const SIZE: egui::Vec2 =
+        egui::Vec2::new(Self::THUMBNAIL_SIZE.x * 1.25, Self::THUMBNAIL_SIZE.y * 1.5);
 
     pub fn new(name: &'a str, icon: Option<&'a egui::ImageSource>) -> Self {
         Self { name, icon }
@@ -331,36 +353,36 @@ impl<'a> EntryDisplay<'a> {
 
 impl<'a> egui::Widget for EntryDisplay<'a> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let response = ui.push_id(self.name, |ui| {
-            ui.vertical_centered_justified(|ui| {
-                if let Some(icon) = self.icon {
-                    ui.add_sized(
-                        Self::THUMBNAIL_SIZE,
-                        egui::Image::new(icon.clone()) // FIXME: Don't clone!
-                            .max_size(Self::THUMBNAIL_SIZE),
-                    );
-                } else {
-                    ui.add_sized(
-                        Self::THUMBNAIL_SIZE,
-                        egui::Image::new(assets::ERROR)
-                            .texture_options(egui::TextureOptions::NEAREST)
-                            .max_size(Self::THUMBNAIL_SIZE),
-                    );
-                }
-                ui.add(
-                    egui::Label::new(egui::RichText::new(self.name).size(12.0)).truncate()
-                );
-            });
-        }).response;
+        let response = ui
+            .push_id(self.name, |ui| {
+                ui.vertical_centered_justified(|ui| {
+                    if let Some(icon) = self.icon {
+                        ui.add_sized(
+                            Self::THUMBNAIL_SIZE,
+                            egui::Image::new(icon.clone()) // FIXME: Don't clone!
+                                .max_size(Self::THUMBNAIL_SIZE),
+                        );
+                    } else {
+                        ui.add_sized(
+                            Self::THUMBNAIL_SIZE,
+                            egui::Image::new(assets::ERROR)
+                                .texture_options(egui::TextureOptions::NEAREST)
+                                .max_size(Self::THUMBNAIL_SIZE),
+                        );
+                    }
+                    ui.add(egui::Label::new(egui::RichText::new(self.name).size(12.0)).truncate());
+                });
+            })
+            .response;
 
         if response.hovered() {
             let painter = ui.painter();
             let stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
             painter.rect_stroke(response.rect, 0.0, stroke);
         }
-        
-        response.on_hover_cursor(egui::CursorIcon::PointingHand).interact(egui::Sense::click())
+
+        response
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .interact(egui::Sense::click())
     }
 }
-
-

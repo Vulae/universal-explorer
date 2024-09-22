@@ -1,3 +1,2 @@
-
-pub mod pickle;
 pub mod parser;
+pub mod pickle;

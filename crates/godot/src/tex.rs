@@ -1,10 +1,7 @@
-
-use std::io::{Read, Seek};
 use anyhow::{anyhow, Result};
-use image::DynamicImage;
 use bitflags::bitflags;
-
-
+use image::DynamicImage;
+use std::io::{Read, Seek};
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -34,8 +31,6 @@ impl DataFormatBits {
     }
 }
 
-
-
 pub fn godot_extract_texture(mut file: impl Read + Seek) -> Result<DynamicImage> {
     file.rewind()?;
     let mut reader = crate::util::reader::Reader::new_le(file);
@@ -49,9 +44,9 @@ pub fn godot_extract_texture(mut file: impl Read + Seek) -> Result<DynamicImage>
             let _flags = reader.read::<u32>()?;
             let data_format = DataFormatBits::from_bits_retain(reader.read::<u32>()?);
 
-            let image_format = data_format
-                .image_format()
-                .ok_or(anyhow!("Godot texture that isn't PNG or WEBP data format not supported"))?;
+            let image_format = data_format.image_format().ok_or(anyhow!(
+                "Godot texture that isn't PNG or WEBP data format not supported"
+            ))?;
 
             if data_format.intersects(DataFormatBits::HAS_MIPMAPS) {
                 println!("Godot texture with extra mipmaps ignored.");
@@ -62,13 +57,17 @@ pub fn godot_extract_texture(mut file: impl Read + Seek) -> Result<DynamicImage>
             // Read first mipmap
             let size = reader.read::<u32>()?;
             match image_format {
-                image::ImageFormat::WebP => if &reader.read::<[u8; 4]>()? != b"WEBP" { return Err(anyhow!("Godot texture mipmap expected webp")) },
+                image::ImageFormat::WebP => {
+                    if &reader.read::<[u8; 4]>()? != b"WEBP" {
+                        return Err(anyhow!("Godot texture mipmap expected webp"));
+                    }
+                }
                 _ => return Err(anyhow!("Godot texture unsupported image format")),
             }
             let data = reader.read_buf((size as usize) - 4)?;
             let image = image::load_from_memory_with_format(&data, image_format)?;
             Ok(image)
-        },
+        }
         b"GST2" => {
             #[allow(non_camel_case_types)]
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,20 +115,18 @@ pub fn godot_extract_texture(mut file: impl Read + Seek) -> Result<DynamicImage>
             let _mipmaps = reader.read::<u32>()?;
             let _format = reader.read::<u32>()?; // https://github.com/godotengine/godot/blob/3504c98c1233bbd2506e89ce46509bc79afaec17/core/io/image.h#L77
 
-            let image_format = data_format
-                .image_format()
-                .ok_or(anyhow!("Godot texture that isn't PNG or WEBP data format not supported"))?;
+            let image_format = data_format.image_format().ok_or(anyhow!(
+                "Godot texture that isn't PNG or WEBP data format not supported"
+            ))?;
 
             // Read first mipmap
             let size = reader.read::<u32>()?;
             let data = reader.read_buf(size as usize)?;
             let image = image::load_from_memory_with_format(&data, image_format)?;
             Ok(image)
-        },
+        }
         b"GD3T" => return Err(anyhow!("Godot 3d texture not supported")),
         b"GDAT" => return Err(anyhow!("Godot array texture not supported")),
         _ => return Err(anyhow!("File is not a texture file")),
     }
 }
-
-
