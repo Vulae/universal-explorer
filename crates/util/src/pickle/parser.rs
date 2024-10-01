@@ -1,12 +1,12 @@
 #![allow(unused)]
 
-use super::pickle::Value;
+use super::pickle::{Module, Value};
 use anyhow::{anyhow, Error, Result};
 use std::{collections::HashMap, convert::TryFrom, io::Read};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 enum Opcode {
     MARK = 0x28,            // push special markobject on stack
     STOP = 0x2E,            // every pickle ends with STOP
@@ -85,7 +85,7 @@ enum Opcode {
 impl Opcode {
     fn try_from(value: u8) -> Result<Opcode> {
         // TODO: Make safe.
-        Ok(unsafe { std::mem::transmute(value) })
+        Ok(unsafe { std::mem::transmute::<u8, Opcode>(value) })
     }
 }
 
@@ -337,7 +337,7 @@ impl Parser {
                         ))
                     }
                 };
-                while items.len() > 0 {
+                while !items.is_empty() {
                     let key = match items.pop() {
                         Some(Value::String(string)) => string,
                         Some(_) => {
@@ -362,6 +362,84 @@ impl Parser {
                 self.stack
                     .push(Value::Binary(reader.read_buf(length as usize)?));
             }
+            Opcode::GLOBAL => self.stack.push(Value::Module(Module::new(
+                reader.read_terminated_string(0x0A)?,
+                reader.read_terminated_string(0x0A)?,
+            ))),
+            Opcode::TUPLE1 => {
+                let item = self.stack.pop()?;
+                self.stack.push(Value::Tuple(vec![item]));
+            }
+            Opcode::REDUCE => {
+                let args = self.stack.pop()?;
+                let module = match self.stack.pop()? {
+                    Value::Module(module) => module,
+                    _ => return Err(anyhow!("Opcode::REDUCE expected module")),
+                };
+                let class = module.to_class(args);
+                self.stack.push(Value::Class(class));
+            }
+            Opcode::EMPTY_TUPLE => self.stack.push(Value::Tuple(Vec::new())),
+            // TODO: Is this actually the same as Opcode::REDUCE ?
+            Opcode::NEWOBJ => {
+                let args = self.stack.pop()?;
+                let module = match self.stack.pop()? {
+                    Value::Module(module) => module,
+                    _ => return Err(anyhow!("Opcode::NEWOBJ expected module")),
+                };
+                let class = module.to_class(args);
+                self.stack.push(Value::Class(class));
+            }
+            Opcode::NONE => self.stack.push(Value::None),
+            Opcode::BININT1 => self.stack.push(Value::Uint(reader.read::<u8>()? as u64)),
+            Opcode::TUPLE => {
+                let mut items = self.stack.pop_mark()?;
+                items.reverse();
+                self.stack.push(Value::Tuple(items));
+            }
+            Opcode::TUPLE2 => {
+                let mut items = vec![self.stack.pop()?, self.stack.pop()?];
+                items.reverse();
+                self.stack.push(Value::Tuple(items));
+            }
+            Opcode::BUILD => {
+                let state = self.stack.pop()?;
+                let mut class = match self.stack.pop()? {
+                    Value::Class(class) => class,
+                    _ => return Err(anyhow!("Opcode::CLASS expected module")),
+                };
+                class.state = Some(Box::new(state));
+                self.stack.push(Value::Class(class));
+            }
+            Opcode::BININT2 => self.stack.push(Value::Uint(reader.read::<u16>()? as u64)),
+            Opcode::NEWFALSE => self.stack.push(Value::Bool(false)),
+            Opcode::SETITEM => {
+                let item = self.stack.pop()?;
+                let key = match self.stack.pop()? {
+                    Value::String(string) => string,
+                    _ => return Err(anyhow!("Opcode::SETITEM expected string")),
+                };
+                let mut dict = self.stack.pop()?;
+                match dict {
+                    Value::Dict(ref mut dict) => dict.insert(key, item),
+                    Value::Class(ref mut class) => class.data.insert(key, item),
+                    _ => return Err(anyhow!("Opcode::SETITEM expected dict or class")),
+                };
+                self.stack.push(dict);
+            }
+            Opcode::LONG_BINGET => self
+                .stack
+                .push(self.memo.get(reader.read::<u32>()? as usize)?.clone()),
+            Opcode::APPENDS => {
+                let mut items = self.stack.pop_mark()?;
+                let mut list = match self.stack.pop()? {
+                    Value::List(list) => list,
+                    _ => return Err(anyhow!("Opcode::APPENDS expected list")),
+                };
+                list.append(&mut items);
+                self.stack.push(Value::List(list));
+            }
+            Opcode::NEWTRUE => self.stack.push(Value::Bool(true)),
             _ => return Err(anyhow!("Unimplemented opcode {:?}", opcode)),
         }
 
@@ -383,6 +461,12 @@ impl Parser {
                 }
             }
         }
-        Ok(parser.stack.pop()?)
+        parser.stack.pop()
+    }
+}
+
+impl Default for Parser {
+    fn default() -> Self {
+        Self::new()
     }
 }

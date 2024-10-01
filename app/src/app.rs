@@ -259,11 +259,16 @@ impl AppContext {
             tree: egui_tiles::Tree::new("root_tree", root, tiles),
             event_receiver: AppContextEventReceiver::new(),
             auto_focus_new_explorers: true,
+            // NOTE: dark_light doesn't work for gnome.
+            // So theme is hard coded to save my eyes.
+            #[cfg(not(debug_assertions))]
             theme: match dark_light::detect() {
                 dark_light::Mode::Dark => catppuccin_egui::MOCHA,
                 dark_light::Mode::Light => catppuccin_egui::LATTE,
                 dark_light::Mode::Default => catppuccin_egui::MOCHA,
             },
+            #[cfg(debug_assertions)]
+            theme: catppuccin_egui::MOCHA,
             last_frame_time: std::time::Duration::ZERO,
         }
     }

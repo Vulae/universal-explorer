@@ -121,24 +121,24 @@ impl<T: Read> Reader<T> {
 
     pub fn read_buf(&mut self, length: usize) -> Result<Vec<u8>> {
         let mut buf = vec![0u8; length];
-        self.data.read(&mut buf)?;
+        self.data.read_exact(&mut buf)?;
         Ok(buf)
     }
 
-    /// If length is not provided, will keep reading until null character "\0"
-    pub fn read_string(&mut self, length: Option<usize>) -> Result<String> {
-        let mut vec = Vec::new();
-        match length {
-            Some(length) => vec.append(&mut self.read_vec_le::<u8>(length)?),
-            None => loop {
-                let byte = self.read_le::<u8>()?;
-                if byte == 0x00 {
-                    break;
-                }
-                vec.push(byte);
-            },
+    pub fn read_string(&mut self, length: usize) -> Result<String> {
+        Ok(String::from_utf8(self.read_buf(length)?)?)
+    }
+
+    pub fn read_terminated_string(&mut self, terminator: u8) -> Result<String> {
+        let mut bytes = Vec::new();
+        loop {
+            let byte = self.read_le::<u8>()?;
+            if byte == terminator {
+                break;
+            }
+            bytes.push(byte);
         }
-        Ok(String::from_utf8(vec)?)
+        Ok(String::from_utf8(bytes)?)
     }
 
     pub fn read_length_string<P: Primitive + TryInto<usize>>(&mut self) -> Result<String> {
@@ -146,7 +146,7 @@ impl<T: Read> Reader<T> {
             .read::<P>()?
             .try_into()
             .map_err(|_| anyhow!("Could not convert primitive to usize"))?;
-        Ok(self.read_string(Some(length))?)
+        self.read_string(length)
     }
 
     // TODO: Don't do it this way.

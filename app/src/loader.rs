@@ -33,6 +33,12 @@ pub fn open_file<F: Read + Seek>(
     {
         return Ok(Some(Box::new(explorer)));
     }
+    #[cfg(feature = "renpy")]
+    if let Ok(explorer) =
+        explorers::renpy::rpyc::RenPyScriptExplorer::file(&mut file, filename.clone())
+    {
+        return Ok(Some(Box::new(explorer)));
+    }
     if let Ok(explorer) = explorers::text::TextExplorer::file(&mut file, filename.clone()) {
         return Ok(Some(Box::new(explorer)));
     }

@@ -21,7 +21,7 @@ impl<F: Read + Seek> RenPyArchive<F> {
     pub fn load(mut file: F) -> Result<Self> {
         let mut reader = crate::util::reader::Reader::new_le(&mut file);
 
-        let header = reader.read_string(Some(34))?;
+        let header = reader.read_string(34)?;
         if !header.ends_with('\n') {
             return Err(anyhow!("RenPy .rpa invalid header"));
         }

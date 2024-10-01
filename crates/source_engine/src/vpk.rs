@@ -168,17 +168,17 @@ impl<F: Read + Seek> VpkArchive<F> {
         let mut stores: Vec<ArchiveStore> = Vec::new();
 
         loop {
-            let ext = reader.read_string(None)?;
+            let ext = reader.read_terminated_string(0x00)?;
             if ext.is_empty() {
                 break;
             }
             loop {
-                let path = reader.read_string(None)?;
+                let path = reader.read_terminated_string(0x00)?;
                 if path.is_empty() {
                     break;
                 }
                 loop {
-                    let name = reader.read_string(None)?;
+                    let name = reader.read_terminated_string(0x00)?;
                     if name.is_empty() {
                         break;
                     }

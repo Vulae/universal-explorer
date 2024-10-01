@@ -4,3 +4,4 @@ extern crate serde_json;
 extern crate util;
 
 pub mod rpa;
+pub mod rpyc;
