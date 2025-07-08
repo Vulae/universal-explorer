@@ -1,24 +1,34 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-#![allow(dead_code)]
+mod app;
+mod tabs;
 
-use std::path::PathBuf;
+use app::{App, AppEvent};
+use tabs::{Tab, VirtualFsTab};
+use util::{OsFs, VirtualFileSystem};
 
-use anyhow::Result;
-use app::run_app;
-use clap::Parser;
+fn main() -> Result<(), anyhow::Error> {
+    env_logger::init();
 
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-#[command(propagate_version = true)]
-struct Cli {
-    #[arg(index = 1)]
-    open: Vec<PathBuf>,
-}
+    let mut app = App::default();
 
-fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let mut tab = VirtualFsTab::new(
+        "OsFs".to_owned(),
+        VirtualFileSystem::new(Box::new(OsFs::new_root()?)),
+    );
+    tab.set_directory("/home/vulae/.local/share/Steam/steamapps/common/GarrysMod/garrysmod/");
 
-    run_app(&cli.open)?;
+    app.event(AppEvent::CreateTab(Tab::new(Box::new(tab))))?;
+
+    eframe::run_native(
+        "universal-explorer",
+        eframe::NativeOptions {
+            viewport: egui::ViewportBuilder::default()
+                .with_title("universal-explorer")
+                .with_min_inner_size([100.0, 100.0]),
+            ..Default::default()
+        },
+        Box::new(|_cc| Ok(Box::new(app))),
+    )
+    .unwrap();
 
     Ok(())
 }

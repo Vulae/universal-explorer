@@ -1,40 +1,36 @@
-extern crate anyhow;
-extern crate flate2;
-extern crate image;
-extern crate rayon;
-extern crate serde;
-extern crate serde_json;
+mod read_ext;
+mod vfs;
 
-pub mod file_utils;
-pub mod image_utils;
-pub mod pickle;
-pub mod reader;
-pub mod texture;
-pub mod tree_fs;
-pub mod virtual_fs;
+use std::collections::HashMap;
 
-use std::num::ParseIntError;
+pub use read_ext::*;
+pub use vfs::*;
 
-#[macro_export]
-macro_rules! print_perf {
-    ($name:literal, $block:expr) => {{
-        #[cfg(debug_assertions)]
-        {
-            let print_perf_start = std::time::Instant::now();
-            let print_perf_result = $block;
-            println!("{} {:?}", $name, print_perf_start.elapsed());
-            print_perf_result
+pub fn index_hashmap_to_vec<T: std::fmt::Debug>(hashmap: HashMap<usize, T>) -> Option<Vec<T>> {
+    let mut vec: Vec<Option<T>> = Vec::from_iter((0..hashmap.len()).map(|_| None));
+    if !hashmap.into_iter().all(|(i, v)| match vec.get_mut(i) {
+        Some(elem @ None) => {
+            *elem = Some(v);
+            true
         }
-        #[cfg(not(debug_assertions))]
-        {
-            $block
-        }
-    }};
+        Some(Some(_elem)) => false,
+        None => false,
+    }) {
+        return None;
+    }
+    vec.into_iter().collect()
 }
 
-pub fn decode_hex(hex_string: &str) -> Result<Vec<u8>, ParseIntError> {
-    (0..hex_string.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&hex_string[i..(i + 2)], 16))
-        .collect()
+#[macro_export]
+macro_rules! debug_time {
+    ($name:literal $inner:block) => {{
+        let __debug_time_start = ::std::time::Instant::now();
+        let __debug_time_output = { $inner };
+        log::debug!(
+            "{}: {:?}",
+            $name,
+            ::std::time::Instant::now().duration_since(__debug_time_start)
+        );
+        __debug_time_output
+    }};
 }

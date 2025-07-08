@@ -1,21 +1,32 @@
 [package]
 name = "universal-explorer"
-description = "View & extract files from game archives"
-version = "0.1.1"
-edition = "2021"
+description = "TODO: DESCRIPTION"
+license = "MIT-0"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [workspace]
 members = [
-    "app",
     "crates/*",
 ]
-package.edition = "2021"
+package.version = "0.1.0"
+package.edition = "2024"
+package.rust-version = "1.88"
+
+[workspace.dependencies]
+log = "0.4.27"
+env_logger = "0.11.8"
+thiserror = "2.0.12"
+anyhow = "1.0.98"
+regex = "1.11.1"
 
 [dependencies]
-# While developing disable some features to get faster build times.
-app = { path = "./app", features = [ "source_engine", "godot", "renpy" ] }
-anyhow = "1.0.86"
-clap = { version = "4.5.16", features = ["derive"] }
-
-[build-dependencies]
-winresource = "0.1.17"
+util = { path = "crates/util" }
+source-engine = { path = "crates/source-engine" }
+log.workspace = true
+env_logger.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+egui = "0.31.1"
+eframe = "0.31.1"
