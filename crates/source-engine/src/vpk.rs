@@ -1,3 +1,4 @@
+/// https://developer.valvesoftware.com/wiki/VPK_(file_format)
 use std::{collections::HashMap, io::Seek};
 
 use log::debug;
@@ -29,9 +30,11 @@ pub enum VPKError {
 }
 
 pub fn is_vpk_file(path: &VirtualFileSystemPath) -> bool {
-    path.name()
-        .map(|name| name.ends_with(".vpk"))
-        .unwrap_or(false)
+    path.is_file()
+        && path
+            .name()
+            .map(|name| name.ends_with(".vpk"))
+            .unwrap_or(false)
 }
 
 const VPK_IDENTIFIER: [u8; 4] = [0x34, 0x12, 0xAA, 0x55];

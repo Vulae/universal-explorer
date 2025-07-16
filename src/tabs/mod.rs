@@ -1,11 +1,11 @@
-use std::sync::atomic::AtomicUsize;
-
-use util::{VirtualFileSystem, VirtualFileSystemPath};
-
 mod hex;
+mod image;
 mod virtual_fs;
+mod vtf;
 pub use hex::*;
+pub use image::*;
 pub use virtual_fs::*;
+pub use vtf::*;
 
 use crate::app::AppEvent;
 
@@ -17,24 +17,22 @@ pub trait TabTrait: std::fmt::Debug {
     fn ui(&mut self, ui: &mut egui::Ui);
 }
 
-static ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
-
 #[derive(Debug)]
 pub struct Tab {
     inner: Box<dyn TabTrait>,
-    id: usize,
+    uuid: uuid::Uuid,
 }
 
 impl Tab {
     pub fn new(inner: Box<dyn TabTrait>) -> Self {
         Self {
             inner,
-            id: ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            uuid: uuid::Uuid::now_v7(),
         }
     }
 
-    pub fn id(&self) -> usize {
-        self.id
+    pub fn id(&self) -> uuid::Uuid {
+        self.uuid
     }
 
     pub fn name(&self) -> &str {
@@ -52,28 +50,4 @@ impl Tab {
         }
         events
     }
-}
-
-pub fn try_open_tab_from_fs_and_path<P: Into<VirtualFileSystemPath>>(
-    fs: &mut VirtualFileSystem,
-    path: P,
-) -> Result<Option<Tab>, anyhow::Error> {
-    let path: VirtualFileSystemPath = path.into();
-
-    if source_engine::is_vpk_file(&path) {
-        let vpk = source_engine::VPKArchiveFiles::locate_archives(fs, &path)?.load()?;
-        return Ok(Some(Tab::new(Box::new(VirtualFsTab::new(
-            path.to_string(),
-            VirtualFileSystem::new(Box::new(vpk)),
-        )))));
-    }
-
-    if path.is_file() {
-        return Ok(Some(Tab::new(Box::new(HexTab::new(
-            path.to_string(),
-            fs.open_file(&path)?,
-        )))));
-    }
-
-    Ok(None)
 }

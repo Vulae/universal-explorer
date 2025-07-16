@@ -8,7 +8,7 @@ pub enum AppEvent {
 #[derive(Debug, Default)]
 pub struct App {
     tabs: Vec<Tab>,
-    selected_tab: usize,
+    selected_tab: uuid::Uuid,
 }
 
 impl App {
@@ -37,8 +37,14 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui_extras::install_image_loaders(ctx);
+
         // TODO: Gracefully fail
         self.process_events().expect("Failed to process events");
+
+        // egui::SidePanel::right("right").show(ctx, |ui| {
+        //     ctx.texture_ui(ui);
+        // });
 
         egui::TopBottomPanel::top("top").show(ctx, |ui| {
             ui.horizontal(|ui| {

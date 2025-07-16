@@ -89,6 +89,13 @@ impl VirtualFileSystemFileSliced {
 
 impl Read for VirtualFileSystemFileSliced {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.offset > self.end {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "End of sliced file",
+            ));
+        }
+
         let read_start = self.offset;
         let read_end = u64::min(self.offset + (buf.len() as u64), self.end);
         let read_len = (read_end - read_start) as usize;

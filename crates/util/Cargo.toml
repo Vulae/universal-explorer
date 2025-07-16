@@ -9,3 +9,4 @@ env_logger.workspace = true
 log.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
+image.workspace = true

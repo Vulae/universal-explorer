@@ -88,11 +88,11 @@ impl VirtualFileSystemTrait for OsFs {
             } else if meta.is_file() {
                 path.push(name);
             } else if meta.is_symlink() {
-                log::warn!("OsFs \"{:?}\" symlink not yet supported", entry.path());
+                log::warn!("OsFs {:?} symlink not yet supported", entry.path());
                 return Ok(());
             } else {
                 log::error!(
-                    "OsFs \"{:?}\" is not a directory, file, or symlink",
+                    "OsFs {:?} is not a directory, file, or symlink",
                     entry.path()
                 );
                 return Ok(());

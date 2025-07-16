@@ -67,6 +67,10 @@ impl VirtualFileSystemPath {
         &self.0
     }
 
+    pub fn is_root(&self) -> bool {
+        self.0 == "/" || self.0.is_empty()
+    }
+
     pub fn is_directory(&self) -> bool {
         self.0.ends_with('/') || self.0.is_empty()
     }
@@ -85,6 +89,15 @@ impl VirtualFileSystemPath {
             iter.next_back();
         }
         iter.next_back()
+    }
+
+    pub fn extension(&self) -> Option<&str> {
+        let name = self.name()?;
+        let dot_index = name
+            .char_indices()
+            .rev()
+            .find_map(|(i, c)| (c == '.').then_some(i))?;
+        Some(&name[(dot_index + 1)..])
     }
 
     pub fn push(&mut self, segment: &str) {

@@ -1,4 +1,7 @@
 mod app;
+mod assets;
+mod egui_util;
+mod loader;
 mod tabs;
 
 use app::{App, AppEvent};
@@ -14,7 +17,8 @@ fn main() -> Result<(), anyhow::Error> {
         "OsFs".to_owned(),
         VirtualFileSystem::new(Box::new(OsFs::new_root()?)),
     );
-    tab.set_directory("/home/vulae/.local/share/Steam/steamapps/common/GarrysMod/garrysmod/");
+    tab.set_directory("/home/vulae/.local/share/Steam/steamapps/common/Team Fortress 2/tf/");
+    // tab.set_directory("/home/vulae/repos/universal-explorer/.testing/");
 
     app.event(AppEvent::CreateTab(Tab::new(Box::new(tab))))?;
 

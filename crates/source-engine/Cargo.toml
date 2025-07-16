@@ -11,3 +11,4 @@ log.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 regex.workspace = true
+image.workspace = true

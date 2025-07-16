@@ -1,3 +1,4 @@
+pub mod codec;
 mod read_ext;
 mod vfs;
 

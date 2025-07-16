@@ -29,9 +29,10 @@ const BYTE_CHAR_MAP: [Option<char>; 256] = [
     None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     ,
 ];
 
-const COLOR_BYTE: egui::Color32 = egui::Color32::from_gray(150);
-const COLOR_NO_CHAR: egui::Color32 = egui::Color32::from_gray(100);
-const COLOR_NO_BYTE: egui::Color32 = egui::Color32::from_gray(50);
+const COLOR_POSITION: egui::Color32 = egui::Color32::WHITE;
+const COLOR_BYTE: egui::Color32 = egui::Color32::from_gray(200);
+const COLOR_NO_CHAR: egui::Color32 = egui::Color32::from_gray(150);
+const COLOR_NO_BYTE: egui::Color32 = egui::Color32::from_gray(100);
 
 #[derive(Debug)]
 struct HexTabData {
@@ -43,6 +44,7 @@ struct HexTabData {
 #[derive(Debug)]
 pub struct HexTab {
     name: String,
+    drag_delta: f32,
     file: VirtualFileSystemFile,
     position: u64,
     data: Option<HexTabData>,
@@ -52,12 +54,15 @@ impl HexTab {
     pub fn new(name: String, file: VirtualFileSystemFile) -> Self {
         Self {
             name,
+            drag_delta: 0.0,
             file,
             position: 0,
             data: None,
         }
     }
 
+    // TODO: Read bigger range around the selected range, then slice into that range, to not have
+    // to read from the file alot.
     fn update_data(&mut self, len: u64) -> Result<&[u8], std::io::Error> {
         if self
             .data
@@ -73,7 +78,10 @@ impl HexTab {
             );
             self.file.seek(std::io::SeekFrom::Start(self.position))?;
             let mut bytes = vec![0u8; len as usize];
-            let read_len = self.file.read(&mut bytes)?;
+            let read_len = match self.file.read(&mut bytes) {
+                Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => Ok(0),
+                v => v,
+            }?;
             bytes.truncate(read_len);
             self.data = Some(HexTabData {
                 position: self.position,
@@ -96,8 +104,10 @@ impl TabTrait for HexTab {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui) {
-        let cols = ((ui.available_width() - 100.0) / 29.0).clamp(4.0, 32.0) as u64;
+        let cols = ((ui.available_width() - 92.0) / 28.0).clamp(4.0, 64.0) as u64;
         let rows = ((ui.available_height() - 18.0) / 18.0).max(8.0) as u64;
+
+        self.position = ((self.drag_delta / 18.0).floor() as u64) * cols;
 
         let pos = self.position;
         let len = cols * rows;
@@ -109,47 +119,79 @@ impl TabTrait for HexTab {
             }
         };
 
-        egui::Grid::new("Hex Grid")
+        let grid_res = egui::Grid::new("Hex Grid")
             .striped(true)
-            .spacing([0.0, 0.0])
+            .spacing([8.0, 0.0])
             .min_col_width(0.0)
             .show(ui, |ui| {
                 ui.label("");
-                for col in 0..cols {
-                    ui.label(egui::WidgetText::from(format!("{col:02X}")).monospace());
-                }
+                ui.label(
+                    egui::WidgetText::from(
+                        (0..cols)
+                            .map(|col| format!("{col:02X}"))
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    )
+                    .color(COLOR_POSITION)
+                    .monospace(),
+                );
                 ui.end_row();
+
                 for row in 0..rows {
                     ui.label(
-                        egui::WidgetText::from(format!("#{:08X}:  ", pos + row * cols)).monospace(),
+                        egui::WidgetText::from(format!("#{:08X}:", pos + row * cols))
+                            .color(COLOR_POSITION)
+                            .monospace(),
                     );
+
+                    let mut str = String::with_capacity((cols as usize) * 3);
                     for col in 0..cols {
-                        ui.label(
-                            if let Some(byte) = data.get((col + row * cols) as usize) {
-                                egui::WidgetText::from(format!("{byte:02X} ")).color(COLOR_BYTE)
-                            } else {
-                                egui::WidgetText::from("-- ").color(COLOR_NO_BYTE)
-                            }
-                            .monospace(),
-                        );
+                        if let Some(byte) = data.get((col + row * cols) as usize) {
+                            str += &format!("{byte:02X} ");
+                        }
                     }
-                    ui.label("  ");
-                    for col in 0..cols {
-                        ui.label(
-                            if let Some(byte) = data.get((col + row * cols) as usize) {
-                                if let Some(char) = BYTE_CHAR_MAP[(*byte) as usize] {
-                                    egui::WidgetText::from(format!("{char}")).color(COLOR_BYTE)
+                    ui.label(egui::WidgetText::from(&str).color(COLOR_BYTE).monospace());
+
+                    if ((row as usize) * (cols as usize)) < data.len() {
+                        ui.horizontal(|ui| {
+                            ui.style_mut().spacing.item_spacing = egui::Vec2::ZERO;
+                            for col in 0..cols {
+                                if let Some(byte) = data.get((col + row * cols) as usize) {
+                                    ui.label(
+                                        if let Some(char) = BYTE_CHAR_MAP[(*byte) as usize] {
+                                            egui::WidgetText::from(format!("{char}"))
+                                                .color(COLOR_BYTE)
+                                        } else {
+                                            egui::WidgetText::from(".").color(COLOR_NO_CHAR)
+                                        }
+                                        .monospace(),
+                                    );
                                 } else {
-                                    egui::WidgetText::from(".").color(COLOR_NO_CHAR)
+                                    ui.label(
+                                        egui::WidgetText::from(".")
+                                            .color(COLOR_NO_BYTE)
+                                            .monospace(),
+                                    );
                                 }
-                            } else {
-                                egui::WidgetText::from("-").color(COLOR_NO_BYTE)
                             }
-                            .monospace(),
-                        );
+                        });
                     }
                     ui.end_row();
                 }
-            });
+            })
+            .response;
+
+        let interaction = ui.interact(
+            grid_res.rect,
+            egui::Id::from(self.name.clone()),
+            egui::Sense::all(),
+        );
+        if interaction.dragged() {
+            let delta = interaction.drag_delta();
+            self.drag_delta -= delta.y;
+            if self.drag_delta < 0.0 {
+                self.drag_delta = 0.0;
+            }
+        }
     }
 }
