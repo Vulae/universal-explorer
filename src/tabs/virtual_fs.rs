@@ -72,7 +72,8 @@ impl VirtualFsTab {
                         let image = match entry_icon(
                             &mut self.fs,
                             &path,
-                            (ENTRY_THUMB_SIZE.x as u32, ENTRY_THUMB_SIZE.y as u32),
+                            ENTRY_THUMB_SIZE.x as u32,
+                            ENTRY_THUMB_SIZE.y as u32,
                         ) {
                             Ok(image) => image,
                             Err(err) => {

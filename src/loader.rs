@@ -22,16 +22,17 @@ pub fn try_open_tab_from_fs_and_path<P: Into<VirtualFileSystemPath>>(
         )))));
     }
 
-    if source_engine::may_be_vtf_file(&path)
-        && source_engine::is_vtf_file(&path, fs.open_file(&path)?)
-    {
-        let vtf = source_engine::Vtf::load(fs.open_file(&path)?)?;
-        return Ok(Some(Tab::new(Box::new(tabs::VtfTab::new(
-            path.name()
-                .map(|v| v.to_owned())
-                .unwrap_or(path.to_string()),
-            vtf,
-        )))));
+    if source_engine::may_be_vtf_file(&path) {
+        let mut file = fs.open_file(&path)?;
+        if source_engine::is_vtf_file(&path, &mut file) {
+            let vtf = source_engine::Vtf::load(file)?;
+            return Ok(Some(Tab::new(Box::new(tabs::VtfTab::new(
+                path.name()
+                    .map(|v| v.to_owned())
+                    .unwrap_or(path.to_string()),
+                vtf,
+            )))));
+        }
     }
 
     if source_engine::is_vpk_file(&path) {
@@ -65,10 +66,10 @@ pub enum LoaderImage {
 pub fn entry_icon<P: Into<VirtualFileSystemPath>>(
     fs: &mut VirtualFileSystem,
     path: P,
-    target_size: (u32, u32),
+    target_width: u32,
+    target_height: u32,
 ) -> Result<Option<LoaderImage>, anyhow::Error> {
     let path: VirtualFileSystemPath = path.into();
-    let (target_width, target_height) = target_size;
 
     if path
         .extension()
@@ -84,17 +85,21 @@ pub fn entry_icon<P: Into<VirtualFileSystemPath>>(
         return Ok(Some(LoaderImage::Image(image)));
     }
 
-    if source_engine::may_be_vtf_file(&path)
-        && source_engine::is_vtf_file(&path, fs.open_file(&path)?)
-    {
-        let vtf = source_engine::Vtf::load(fs.open_file(&path)?)?;
-        let image = vtf.texture_best().to_image();
-        let image = image.resize(
-            target_width,
-            target_height,
-            image::imageops::FilterType::Triangle,
-        );
-        return Ok(Some(LoaderImage::Image(image)));
+    if source_engine::may_be_vtf_file(&path) {
+        let mut file = fs.open_file(&path)?;
+        if source_engine::is_vtf_file(&path, &mut file) {
+            // let vtf = source_engine::Vtf::load(file)?;
+            // let texture = vtf.texture_best();
+            let texture =
+                source_engine::Vtf::load_single_texture(file, target_width, target_height)?;
+            let image = texture.to_image();
+            let image = image.resize(
+                target_width,
+                target_height,
+                image::imageops::FilterType::Triangle,
+            );
+            return Ok(Some(LoaderImage::Image(image)));
+        }
     }
 
     if source_engine::is_vpk_file(&path) {

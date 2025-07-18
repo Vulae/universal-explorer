@@ -495,6 +495,41 @@ impl VtfContainerFrames {
     }
 }
 
+struct IterTexturesEntry {
+    width: u32,
+    height: u32,
+    mipmap: u8,
+    frame: u16,
+    face: u8,
+    slice: u16,
+}
+
+fn iter_textures(
+    width: u32,
+    height: u32,
+    mipmaps: u8,
+    frames: u16,
+    faces: u8,
+    depth: u16,
+) -> impl Iterator<Item = IterTexturesEntry> {
+    (0..mipmaps)
+        .rev()
+        .flat_map(move |mipmap| {
+            (0..frames).flat_map(move |frame| {
+                (0..faces)
+                    .flat_map(move |face| (0..depth).map(move |slice| (mipmap, frame, face, slice)))
+            })
+        })
+        .map(move |(mipmap, frame, face, slice)| IterTexturesEntry {
+            width: (width >> mipmap).max(1),
+            height: (height >> mipmap).max(1),
+            mipmap,
+            frame,
+            face,
+            slice,
+        })
+}
+
 #[derive(Debug, Clone)]
 pub enum VtfContainer {
     Frames(VtfContainerFrames),
@@ -515,24 +550,16 @@ impl VtfContainer {
         faces: u8,
         depth: u16,
     ) -> Result<Self, VtfError> {
-        let mut textures = Vec::new();
-
-        for mipmap in (0..mipmaps).rev() {
-            let width = ((width as u32) >> mipmap).max(1);
-            let height = ((height as u32) >> mipmap).max(1);
-            for _frame in 0..frames {
-                for _face in 0..faces {
-                    for _slice in 0..depth {
-                        textures.push(VtfTexture {
-                            format,
-                            width,
-                            height,
-                            bytes: reader.read_var(format.texture_byte_size(width, height))?,
-                        });
-                    }
-                }
-            }
-        }
+        let textures = iter_textures(width as u32, height as u32, mipmaps, frames, faces, depth)
+            .map(|IterTexturesEntry { width, height, .. }| {
+                Ok(VtfTexture {
+                    format,
+                    width,
+                    height,
+                    bytes: reader.read_var(format.texture_byte_size(width, height))?,
+                })
+            })
+            .collect::<Result<Vec<_>, VtfError>>()?;
 
         let inner = VtfContainerInner {
             format,
@@ -892,6 +919,60 @@ impl Vtf {
             },
             reflectivity: header.reflectivity,
             bumpmap_scale: header.bumpmap_scale,
+        })
+    }
+
+    pub fn load_single_texture<F: Read + Seek>(
+        mut reader: F,
+        target_width: u32,
+        target_height: u32,
+    ) -> Result<VtfTexture, VtfError> {
+        let header = VtfHeader::load(&mut reader)?;
+
+        let target_mipmap = (0..header.mipmaps)
+            .rev()
+            .find(|mipmap| {
+                let width = ((header.width as u32) >> mipmap).max(1);
+                let height = ((header.height as u32) >> mipmap).max(1);
+                width >= target_width && height >= target_height
+            })
+            .unwrap_or(0);
+
+        let texture_offset: usize = iter_textures(
+            header.width as u32,
+            header.height as u32,
+            header.mipmaps,
+            header.frames,
+            header.faces,
+            header.depth,
+        )
+        .take_while(
+            |IterTexturesEntry {
+                 mipmap,
+                 frame,
+                 face,
+                 slice,
+                 ..
+             }| {
+                *mipmap != target_mipmap || *frame != 0 || *face != 0 || *slice != 0
+            },
+        )
+        .map(|IterTexturesEntry { width, height, .. }| {
+            header.format.texture_byte_size(width, height)
+        })
+        .sum();
+
+        let actual_offset = header.highres_offset + texture_offset;
+
+        let width = ((header.width as u32) >> target_mipmap).max(1);
+        let height = ((header.height as u32) >> target_mipmap).max(1);
+        let size = header.format.texture_byte_size(width, height);
+        reader.seek(std::io::SeekFrom::Start(actual_offset as u64))?;
+        Ok(VtfTexture {
+            format: header.format,
+            width,
+            height,
+            bytes: reader.read_var(size)?,
         })
     }
 
