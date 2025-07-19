@@ -95,8 +95,8 @@ impl HexTab {
 }
 
 impl TabTrait for HexTab {
-    fn name(&self) -> &str {
-        &self.name
+    fn name(&self) -> egui::WidgetText {
+        self.name.as_str().into()
     }
 
     fn next_event(&mut self) -> Option<AppEvent> {

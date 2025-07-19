@@ -218,8 +218,8 @@ impl VirtualFsTab {
 }
 
 impl TabTrait for VirtualFsTab {
-    fn name(&self) -> &str {
-        &self.name
+    fn name(&self) -> egui::WidgetText {
+        self.name.as_str().into()
     }
 
     fn next_event(&mut self) -> Option<AppEvent> {
@@ -235,7 +235,7 @@ impl TabTrait for VirtualFsTab {
                 dir = some_dir.parent();
             }
 
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 for path in paths.iter().rev() {
                     let name = path
                         .is_root()

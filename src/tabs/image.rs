@@ -29,8 +29,8 @@ impl ImageTab {
 }
 
 impl TabTrait for ImageTab {
-    fn name(&self) -> &str {
-        &self.name
+    fn name(&self) -> egui::WidgetText {
+        self.name.as_str().into()
     }
 
     fn ui(&mut self, ui: &mut egui::Ui) {

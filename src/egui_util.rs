@@ -4,6 +4,7 @@ use util::VirtualFileSystemFile;
 
 pub struct ImageSourceWithTextureHandle<'a> {
     pub source: egui::ImageSource<'a>,
+    #[allow(unused)]
     pub handle: egui::TextureHandle,
 }
 

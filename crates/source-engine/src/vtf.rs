@@ -381,6 +381,7 @@ impl VtfTexture {
                 let mut image = image::RgbImage::new(self.width, self.height);
                 iter_pixel_sections(&self.bytes, self.width, self.height).for_each(
                     |([u, v], x, y)| {
+                        // FIXME: Ordering is wrong.
                         image.get_pixel_mut(x, y).0 = [u, v, 0];
                     },
                 );
@@ -390,6 +391,7 @@ impl VtfTexture {
                 let mut image = image::RgbaImage::new(self.width, self.height);
                 iter_pixel_sections(&self.bytes, self.width, self.height).for_each(
                     |([u, v, w, q], x, y)| {
+                        // FIXME: Ordering is probably wrong.
                         image.get_pixel_mut(x, y).0 = [u, v, w, q];
                     },
                 );

@@ -1,16 +1,18 @@
 mod hex;
 mod image;
+mod other;
 mod virtual_fs;
 mod vtf;
 pub use hex::*;
 pub use image::*;
+pub use other::*;
 pub use virtual_fs::*;
 pub use vtf::*;
 
 use crate::app::AppEvent;
 
 pub trait TabTrait: std::fmt::Debug {
-    fn name(&self) -> &str;
+    fn name(&self) -> egui::WidgetText;
     fn next_event(&mut self) -> Option<AppEvent> {
         None
     }
@@ -35,7 +37,7 @@ impl Tab {
         self.uuid
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> egui::WidgetText {
         self.inner.name()
     }
 
