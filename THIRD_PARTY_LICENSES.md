@@ -1,14 +1,14 @@
 
 # Third-Party Licenses and Attributions
 
-This project incorporates some third-party assets that are licensed under the MIT License.
-Details for these assets are provided below.
+This project is licensed under the MIT No Attribution License (MIT-0), except for explicitly noted third-party assets which are under different licenses.
+Details for these third-party assets are provided below.
 
 ---
 
 ## Assets: Lucide Icons
 
-**Location:** `assets/lucide/`
+**Location:** [`assets/lucide/`](./assets/lucide/)
 
 **Link:** [lucide.dev/license](https://lucide.dev/license)
 
