@@ -100,3 +100,20 @@ impl<T> TreeNode<T> {
         }
     }
 }
+
+/// Detects if input sample buffer may be utf-8.
+/// Input sample buffer should probably be atleast 32 bytes, or else it will have alot of false
+/// positives.
+pub fn is_likely_utf8(buf: &[u8]) -> bool {
+    // Tries to read as many UTF-8 characters as possible, and if any fails return false.
+    // But if we are near the end of the data and it fails, it may just be that character got
+    // cut off from the end of the sample buffer.
+    let mut read_count = 0;
+    for chunk in buf.utf8_chunks() {
+        read_count += chunk.valid().len();
+        if !chunk.invalid().is_empty() && read_count < buf.len().saturating_sub(4) {
+            return false;
+        }
+    }
+    true
+}

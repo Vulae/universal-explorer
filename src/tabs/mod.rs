@@ -1,11 +1,14 @@
 mod hex;
 mod image;
 mod other;
+mod text;
 mod virtual_fs;
 mod vtf;
+
 pub use hex::*;
 pub use image::*;
 pub use other::*;
+pub use text::*;
 pub use virtual_fs::*;
 pub use vtf::*;
 

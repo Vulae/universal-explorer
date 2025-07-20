@@ -215,11 +215,13 @@ impl eframe::App for App {
             }
         }
 
-        egui_dock::DockArea::new(&mut self.tree)
-            .style(egui_dock::Style::from_egui(ctx.style().as_ref()))
-            .show_leaf_collapse_buttons(false)
-            .show_leaf_close_all_buttons(false)
-            .show(ctx, &mut TabViewer);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui_dock::DockArea::new(&mut self.tree)
+                .style(egui_dock::Style::from_egui(ui.style()))
+                .show_leaf_collapse_buttons(false)
+                .show_leaf_close_all_buttons(false)
+                .show_inside(ui, &mut TabViewer);
+        });
 
         self.last_update_time = std::time::Instant::now().duration_since(start);
     }

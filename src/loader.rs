@@ -1,4 +1,6 @@
-use util::{VirtualFileSystem, VirtualFileSystemPath};
+use std::io::{Read, Seek};
+
+use util::{is_likely_utf8, VirtualFileSystem, VirtualFileSystemPath};
 
 use crate::{
     assets,
@@ -56,11 +58,36 @@ pub fn try_open_tab_from_fs_and_path<P: Into<VirtualFileSystemPath>>(
     }
 
     if path.is_file() {
+        let mut file = fs.open_file(&path)?;
+
+        let mut preview = [0u8; 64];
+        let preview_length = file.read(&mut preview)?;
+        file.rewind()?;
+
+        if is_likely_utf8(&preview[0..preview_length]) {
+            let mut full = Vec::new();
+            file.read_to_end(&mut full)?;
+            match String::from_utf8(full) {
+                Ok(string) => {
+                    return Ok(Some(Tab::new(Box::new(tabs::TextTab::new(
+                        path.name()
+                            .map(|v| v.to_owned())
+                            .unwrap_or(path.to_string()),
+                        string,
+                    )))));
+                }
+                Err(err) => {
+                    log::warn!("Text file detection guessed wrong: {err}");
+                    file.rewind()?;
+                }
+            }
+        }
+
         return Ok(Some(Tab::new(Box::new(tabs::HexTab::new(
             path.name()
                 .map(|v| v.to_owned())
                 .unwrap_or(path.to_string()),
-            fs.open_file(&path)?,
+            file,
         )))));
     }
 
