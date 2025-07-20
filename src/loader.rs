@@ -45,6 +45,16 @@ pub fn try_open_tab_from_fs_and_path<P: Into<VirtualFileSystemPath>>(
         )))));
     }
 
+    if renpy::is_rpa_file(&path) {
+        let rpa = renpy::RenPyArchive::new(fs.open_file(&path)?)?;
+        return Ok(Some(Tab::new(Box::new(tabs::VirtualFsTab::new(
+            path.name()
+                .map(|v| v.to_owned())
+                .unwrap_or(path.to_string()),
+            VirtualFileSystem::new(Box::new(rpa)),
+        )))));
+    }
+
     if path.is_file() {
         return Ok(Some(Tab::new(Box::new(tabs::HexTab::new(
             path.name()
@@ -103,6 +113,12 @@ pub fn entry_icon<P: Into<VirtualFileSystemPath>>(
     }
 
     if source_engine::is_vpk_file(&path) {
+        return Ok(Some(LoaderImage::Source(
+            assets::LUCIDE_FILE_ARCHIVE.to_owned(),
+        )));
+    }
+
+    if renpy::is_rpa_file(&path) {
         return Ok(Some(LoaderImage::Source(
             assets::LUCIDE_FILE_ARCHIVE.to_owned(),
         )));

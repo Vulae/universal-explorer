@@ -21,10 +21,13 @@ thiserror = "2.0.12"
 anyhow = "1.0.98"
 regex = "1.11.1"
 image = "0.25.6"
+flate2 = "1.1.2"
+serde = { version = "1.0.219", features = ["derive"] }
 
 [dependencies]
 util = { path = "crates/util" }
 source-engine = { path = "crates/source-engine" }
+renpy = { path = "crates/renpy" }
 log.workspace = true
 env_logger.workspace = true
 thiserror.workspace = true

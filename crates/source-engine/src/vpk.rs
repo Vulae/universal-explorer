@@ -4,7 +4,7 @@ use std::{collections::HashMap, io::Seek};
 use log::debug;
 use thiserror::Error;
 use util::{
-    index_hashmap_to_vec, ReadExt as _, VirtualFileSystem, VirtualFileSystemError,
+    index_hashmap_to_vec, ReadExt as _, TreeNode, VirtualFileSystem, VirtualFileSystemError,
     VirtualFileSystemFile, VirtualFileSystemFileSliced, VirtualFileSystemFileTrait,
     VirtualFileSystemPath, VirtualFileSystemTrait,
 };
@@ -139,66 +139,10 @@ struct VPKEntry {
 }
 
 #[derive(Debug)]
-enum TreeNode {
-    Branch(HashMap<String, TreeNode>),
-    Leaf(usize),
-}
-
-impl Default for TreeNode {
-    fn default() -> Self {
-        Self::Branch(HashMap::new())
-    }
-}
-
-impl TreeNode {
-    fn insert(&mut self, path: &str, index: usize) -> bool {
-        let TreeNode::Branch(branch) = self else {
-            return false;
-        };
-
-        if let Some(path_dir_root) = path.find('/') {
-            let (root_dir, rest) = path.split_at(path_dir_root);
-            branch
-                .entry(root_dir.to_owned())
-                .or_default()
-                .insert(&rest[1..], index)
-        } else {
-            if branch.contains_key(path) {
-                return false;
-            }
-            if branch
-                .insert(path.to_owned(), TreeNode::Leaf(index))
-                .is_some()
-            {
-                unreachable!();
-            }
-            true
-        }
-    }
-
-    fn get(&self, path: &str) -> Option<&TreeNode> {
-        match self {
-            TreeNode::Leaf(_) => (!path.is_empty()).then_some(self),
-            TreeNode::Branch(branch) => {
-                if path.is_empty() {
-                    return Some(self);
-                }
-                if let Some(path_dir_root) = path.find('/') {
-                    let (current_dir, rest) = path.split_at(path_dir_root);
-                    branch.get(current_dir)?.get(&rest[1..])
-                } else {
-                    branch.get(path)
-                }
-            }
-        }
-    }
-}
-
-#[derive(Debug)]
 pub struct VPK {
     archive_files: VPKArchiveFiles,
     dir_entries_offset: u64,
-    tree: TreeNode,
+    tree: TreeNode<usize>,
     entries: Vec<VPKEntry>,
 }
 
@@ -269,7 +213,7 @@ impl VPK {
                             length: entry_length,
                         });
                     } else {
-                        log::warn!("VPK Failed to insert into tree \"{fullpath}\"");
+                        log::warn!("VPK failed to insert into tree \"{fullpath}\"");
                     }
                 }
             }

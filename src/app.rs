@@ -40,6 +40,10 @@ impl Default for App {
 }
 
 impl App {
+    pub fn push_event(&mut self, event: AppEvent) {
+        self.events.push(event);
+    }
+
     fn process_events(&mut self) {
         let mut tab_events: Vec<AppEvent> = self
             .tree

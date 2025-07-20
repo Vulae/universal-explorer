@@ -1,8 +1,9 @@
 pub mod codec;
+pub mod python;
 mod read_ext;
 mod vfs;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 pub use read_ext::*;
 pub use vfs::*;
@@ -34,4 +35,68 @@ macro_rules! debug_time {
         );
         __debug_time_output
     }};
+}
+
+pub enum TreeNode<T> {
+    Branch(HashMap<String, TreeNode<T>>),
+    Leaf(T),
+}
+
+impl<T: Debug> Debug for TreeNode<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Branch(branch) => f.debug_tuple("Branch").field(branch).finish(),
+            Self::Leaf(leaf) => f.debug_tuple("Leaf").field(leaf).finish(),
+        }
+    }
+}
+
+impl<T> Default for TreeNode<T> {
+    fn default() -> Self {
+        Self::Branch(HashMap::new())
+    }
+}
+
+impl<T> TreeNode<T> {
+    pub fn insert(&mut self, path: &str, value: T) -> bool {
+        let TreeNode::Branch(branch) = self else {
+            return false;
+        };
+
+        if let Some(path_dir_root) = path.find('/') {
+            let (root_dir, rest) = path.split_at(path_dir_root);
+            branch
+                .entry(root_dir.to_owned())
+                .or_default()
+                .insert(&rest[1..], value)
+        } else {
+            if branch.contains_key(path) {
+                return false;
+            }
+            if branch
+                .insert(path.to_owned(), TreeNode::Leaf(value))
+                .is_some()
+            {
+                unreachable!();
+            }
+            true
+        }
+    }
+
+    pub fn get(&self, path: &str) -> Option<&TreeNode<T>> {
+        match self {
+            TreeNode::Leaf(_) => (!path.is_empty()).then_some(self),
+            TreeNode::Branch(branch) => {
+                if path.is_empty() {
+                    return Some(self);
+                }
+                if let Some(path_dir_root) = path.find('/') {
+                    let (current_dir, rest) = path.split_at(path_dir_root);
+                    branch.get(current_dir)?.get(&rest[1..])
+                } else {
+                    branch.get(path)
+                }
+            }
+        }
+    }
 }

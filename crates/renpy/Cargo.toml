@@ -1,15 +1,14 @@
 [package]
-name = "util"
+name = "renpy"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+util = { path = "../util" }
 env_logger.workspace = true
 log.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
-image.workspace = true
-flate2.workspace = true
 serde.workspace = true
-paste = "1.0.15"
+
