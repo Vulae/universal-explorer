@@ -41,3 +41,4 @@ uuid = { version = "1.17.0", features = ["v7"] }
 sysinfo = { version = "0.36.1", default-features = false, features = ["component", "system", "user"] }
 egui_dock = "0.17.0"
 home = "0.5.11"
+rayon = "1.10.0"

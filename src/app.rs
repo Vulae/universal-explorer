@@ -110,10 +110,12 @@ impl App {
                             {
                                 self.debug_stats_enabled = !self.debug_stats_enabled;
                             }
+
                             if ui.button("egui texture info").clicked() {
                                 self.events
                                     .push(AppEvent::CreateTab(Tab::new(Box::new(TextureInfoTab))));
                             }
+
                             if ui.button("OS file system: /").clicked() {
                                 let fs =
                                     OsFs::new_root().expect("Error while creating new OsFs tab");

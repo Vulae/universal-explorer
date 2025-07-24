@@ -31,7 +31,7 @@ pub fn image_handle(image: image::DynamicImage, ctx: &egui::Context) -> egui::Te
         image.into_rgba8().into_flat_samples().as_slice(),
     );
     let mut options = egui::TextureOptions::default();
-    if image.width() * image.height() <= 4096 {
+    if image.width() * image.height() <= 96 * 96 {
         options.magnification = egui::TextureFilter::Nearest;
     }
     ctx.load_texture(uuid::Uuid::now_v7(), image, options)

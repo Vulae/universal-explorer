@@ -117,3 +117,62 @@ pub fn is_likely_utf8(buf: &[u8]) -> bool {
     }
     true
 }
+
+#[derive(Debug, Clone)]
+pub struct LevenshteinDistance {
+    pub cost_substitution: usize,
+    pub cost_deletion: usize,
+    pub cost_insertion: usize,
+}
+
+impl LevenshteinDistance {
+    pub const fn new(
+        cost_substitution: usize,
+        cost_deletion: usize,
+        cost_insertion: usize,
+    ) -> Self {
+        Self {
+            cost_substitution,
+            cost_deletion,
+            cost_insertion,
+        }
+    }
+
+    pub fn distance(&self, a: &str, b: &str) -> usize {
+        let a_len = a.chars().count();
+        let b_len = b.chars().count();
+
+        if a_len < b_len {
+            return self.distance(b, a);
+        } else if b_len == 0 {
+            return a_len * self.cost_insertion;
+        } else if a_len == 0 {
+            unreachable!();
+        }
+
+        let b_len = b_len + 1;
+
+        let mut cur = vec![0; b_len];
+
+        for (i, ca) in a.char_indices() {
+            let mut pre = cur[0];
+            cur[0] = i + 1;
+            for (j, cb) in b.char_indices() {
+                let tmp = cur[j + 1];
+                cur[j + 1] = usize::min(
+                    // Deletion
+                    tmp + self.cost_deletion,
+                    usize::min(
+                        // Insertion
+                        cur[j] + self.cost_insertion,
+                        // Matching or subsitution
+                        pre + if ca == cb { 0 } else { self.cost_substitution },
+                    ),
+                );
+                pre = tmp;
+            }
+        }
+
+        cur[b_len - 1]
+    }
+}

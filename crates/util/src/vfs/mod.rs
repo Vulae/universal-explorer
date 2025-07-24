@@ -1,6 +1,7 @@
 use std::{
     fmt::{Debug, Display},
     io::{Read, Seek},
+    sync::{Arc, Mutex},
 };
 
 use thiserror::Error;
@@ -125,7 +126,7 @@ impl VirtualFileSystemPath {
     }
 }
 
-pub trait VirtualFileSystemFileTrait: Read + Seek {
+pub trait VirtualFileSystemFileTrait: Read + Seek + Send + Sync {
     /// Tries to clone self.
     /// Unlike std::fs::File::try_clone, the instances do not share the same handle/are not linked.
     ///
@@ -185,58 +186,59 @@ impl VirtualFileSystemFile {
 }
 
 /// Read-only virtual filesystem
-pub trait VirtualFileSystemTrait {
+pub trait VirtualFileSystemTrait: Send + Sync {
     fn read_directory_inner(
-        &mut self,
+        &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<[VirtualFileSystemPath]>, VirtualFileSystemError>;
 
     fn open_file_inner(
-        &mut self,
+        &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<dyn VirtualFileSystemFileTrait>, VirtualFileSystemError>;
 }
 
+#[derive(Clone)]
 pub struct VirtualFileSystem {
-    inner: Box<dyn VirtualFileSystemTrait>,
+    inner: Arc<Mutex<Box<dyn VirtualFileSystemTrait>>>,
 }
 
 impl Debug for VirtualFileSystem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VirtualFileSystem")
-            .field(
-                "inner",
-                &(&*self.inner as *const dyn VirtualFileSystemTrait),
-            )
-            .finish()
+        f.debug_struct("VirtualFileSystem").finish()
     }
 }
 
+unsafe impl Send for VirtualFileSystem {}
+unsafe impl Sync for VirtualFileSystem {}
+
 impl VirtualFileSystem {
     pub fn new(inner: Box<dyn VirtualFileSystemTrait>) -> Self {
-        Self { inner }
+        Self {
+            inner: Arc::new(Mutex::new(inner)),
+        }
     }
 
     pub fn read_directory<P: Into<VirtualFileSystemPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> Result<Box<[VirtualFileSystemPath]>, VirtualFileSystemError> {
-        self.inner.read_directory_inner(path.into())
+        self.inner.lock().unwrap().read_directory_inner(path.into())
     }
 
     pub fn open_file<P: Into<VirtualFileSystemPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> Result<VirtualFileSystemFile, VirtualFileSystemError> {
         let path = path.into();
         Ok(VirtualFileSystemFile {
             path: path.clone(),
-            inner: self.inner.open_file_inner(path)?,
+            inner: self.inner.lock().unwrap().open_file_inner(path)?,
         })
     }
 
     pub fn iter_entries<P: Into<VirtualFileSystemPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> impl Iterator<Item = Result<VirtualFileSystemPath, VirtualFileSystemError>> {
         let mut entries: Vec<VirtualFileSystemPath> = vec![path.into()];
@@ -254,7 +256,7 @@ impl VirtualFileSystem {
     }
 
     pub fn debug_print<P: Into<VirtualFileSystemPath>, F: Fn(&VirtualFileSystemPath) -> bool>(
-        &mut self,
+        &self,
         path: P,
         filter: F,
     ) -> Result<(), VirtualFileSystemError> {

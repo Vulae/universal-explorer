@@ -122,7 +122,7 @@ impl RenPyArchive {
 
 impl VirtualFileSystemTrait for RenPyArchive {
     fn read_directory_inner(
-        &mut self,
+        &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<[VirtualFileSystemPath]>, VirtualFileSystemError> {
         let Some(TreeNode::Branch(entries)) = self.tree.get(path.to_str()) else {
@@ -143,7 +143,7 @@ impl VirtualFileSystemTrait for RenPyArchive {
     }
 
     fn open_file_inner(
-        &mut self,
+        &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<dyn VirtualFileSystemFileTrait>, VirtualFileSystemError> {
         let Some(TreeNode::Leaf(index)) = self.tree.get(path.to_str()) else {

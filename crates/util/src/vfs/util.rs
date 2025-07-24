@@ -21,13 +21,13 @@ impl MergeFs {
 
 impl VirtualFileSystemTrait for MergeFs {
     fn read_directory_inner(
-        &mut self,
+        &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<[VirtualFileSystemPath]>, VirtualFileSystemError> {
         let mut has_some_filesystem_with_directory = false;
         let mut entries = HashSet::new();
 
-        self.filesystems.iter_mut().try_for_each(|fs| {
+        self.filesystems.iter().try_for_each(|fs| {
             match fs.read_directory_inner(path.clone()) {
                 Ok(fs_entries) => fs_entries.into_iter().for_each(|entry| {
                     has_some_filesystem_with_directory = true;
@@ -47,10 +47,10 @@ impl VirtualFileSystemTrait for MergeFs {
     }
 
     fn open_file_inner(
-        &mut self,
+        &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<dyn VirtualFileSystemFileTrait>, VirtualFileSystemError> {
-        for fs in self.filesystems.iter_mut() {
+        for fs in self.filesystems.iter() {
             match fs.open_file_inner(path.clone()) {
                 Ok(file) => return Ok(file),
                 Err(VirtualFileSystemError::FileDoesntExist(_)) => {}

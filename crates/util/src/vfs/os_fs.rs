@@ -56,7 +56,7 @@ impl VirtualFileSystemFileTrait for OsFsFile {
 
 impl VirtualFileSystemTrait for OsFs {
     fn read_directory_inner(
-        &mut self,
+        &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<[VirtualFileSystemPath]>, VirtualFileSystemError> {
         let mut directory_path = PathBuf::from(&self.root);
@@ -107,7 +107,7 @@ impl VirtualFileSystemTrait for OsFs {
     }
 
     fn open_file_inner(
-        &mut self,
+        &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<dyn VirtualFileSystemFileTrait>, VirtualFileSystemError> {
         let mut file_path = PathBuf::from(&self.root);

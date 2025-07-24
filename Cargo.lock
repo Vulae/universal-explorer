@@ -3597,6 +3597,7 @@ dependencies = [
  "home",
  "image",
  "log",
+ "rayon",
  "renpy",
  "source-engine",
  "sysinfo",

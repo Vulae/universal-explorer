@@ -101,7 +101,7 @@ pub enum LoaderImage {
 }
 
 pub fn entry_icon<P: Into<VirtualFileSystemPath>>(
-    fs: &mut VirtualFileSystem,
+    fs: &VirtualFileSystem,
     path: P,
     target_width: u32,
     target_height: u32,
@@ -114,11 +114,6 @@ pub fn entry_icon<P: Into<VirtualFileSystemPath>>(
         .is_some()
     {
         let image = load_image(&mut fs.open_file(&path)?)?;
-        let image = image.resize(
-            target_width,
-            target_height,
-            image::imageops::FilterType::Triangle,
-        );
         return Ok(Some(LoaderImage::Image(image)));
     }
 
@@ -130,11 +125,6 @@ pub fn entry_icon<P: Into<VirtualFileSystemPath>>(
             let texture =
                 source_engine::Vtf::load_single_texture(file, target_width, target_height)?;
             let image = texture.to_image();
-            let image = image.resize(
-                target_width,
-                target_height,
-                image::imageops::FilterType::Triangle,
-            );
             return Ok(Some(LoaderImage::Image(image)));
         }
     }
