@@ -24,6 +24,16 @@ pub fn try_open_tab_from_fs_and_path<P: Into<VirtualFileSystemPath>>(
         )))));
     }
 
+    if archive::is_zip_file(&path) {
+        let zip = archive::Zip::load(fs.open_file(&path)?)?;
+        return Ok(Some(Tab::new(Box::new(tabs::VirtualFsTab::new(
+            path.name()
+                .map(|v| v.to_owned())
+                .unwrap_or(path.to_string()),
+            VirtualFileSystem::new(Box::new(zip)),
+        )))));
+    }
+
     if source_engine::may_be_vtf_file(&path) {
         let mut file = fs.open_file(&path)?;
         if source_engine::is_vtf_file(&path, &mut file) {

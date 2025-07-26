@@ -290,6 +290,8 @@ impl VirtualFsTab {
                     }
                 }
 
+                // FIXME: Popup buttons aren't clickable.
+                // It becomes not open before button is able to be clicked.
                 if let Some(egui::InnerResponse {
                     inner: Some(selected),
                     ..
@@ -300,6 +302,13 @@ impl VirtualFsTab {
                     .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                     .show(|ui| {
                         ui.set_min_width(128.0);
+                        if dirs.is_empty() {
+                            ui.colored_label(
+                                ui.style().visuals.weak_text_color(),
+                                "No Directories",
+                            );
+                        }
+
                         let mut selected = None;
                         dirs.into_iter().for_each(|(dir, _)| {
                             if ui.button(dir.name().unwrap()).clicked() {

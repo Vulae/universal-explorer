@@ -16,7 +16,6 @@ package.rust-version = "1.88"
 
 [workspace.dependencies]
 log = "0.4.27"
-env_logger = "0.11.8"
 thiserror = "2.0.12"
 anyhow = "1.0.98"
 regex = "1.11.1"
@@ -26,10 +25,11 @@ serde = { version = "1.0.219", features = ["derive"] }
 
 [dependencies]
 util = { path = "crates/util" }
+archive = { path = "crates/archive" }
 source-engine = { path = "crates/source-engine" }
 renpy = { path = "crates/renpy" }
+env_logger = "0.11.8"
 log.workspace = true
-env_logger.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 image.workspace = true

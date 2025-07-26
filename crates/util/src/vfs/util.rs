@@ -85,6 +85,13 @@ impl VirtualFileSystemFileSliced {
             end,
         })
     }
+
+    pub fn try_clone(&self) -> Result<Self, VirtualFileSystemError> {
+        Ok(
+            Self::new(self.inner.try_clone()?, self.start, self.end)
+                .map_err(anyhow::Error::from)?,
+        )
+    }
 }
 
 impl Read for VirtualFileSystemFileSliced {
@@ -145,10 +152,7 @@ impl VirtualFileSystemFileTrait for VirtualFileSystemFileSliced {
     fn try_clone_inner(
         &self,
     ) -> Result<Box<dyn VirtualFileSystemFileTrait>, VirtualFileSystemError> {
-        Ok(Box::new(
-            Self::new(self.inner.try_clone()?, self.start, self.end)
-                .map_err(anyhow::Error::from)?,
-        ))
+        Ok(Box::new(self.try_clone()?))
     }
 }
 
@@ -172,7 +176,8 @@ mod test {
     fn vfs_file_sliced_seek_test() -> Result<(), anyhow::Error> {
         let testdata: [u8; 1024] = std::array::from_fn(|i| (i % 0xFF) as u8);
 
-        let file = VirtualFileSystemFile::__debug_new(Box::new(std::io::Cursor::new(testdata)));
+        let file =
+            VirtualFileSystemFile::__debug_new_from_trait(Box::new(std::io::Cursor::new(testdata)));
         let mut file_slice = VirtualFileSystemFileSliced::new(file.try_clone()?, 10, 20)?;
 
         assert_eq!(file_slice.seek(SeekFrom::Start(5))?, 5);

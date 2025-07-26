@@ -166,10 +166,28 @@ impl Seek for VirtualFileSystemFile {
 }
 
 impl VirtualFileSystemFile {
-    pub fn __debug_new(inner: Box<dyn VirtualFileSystemFileTrait>) -> Self {
+    pub fn __debug_new_from_trait(inner: Box<dyn VirtualFileSystemFileTrait>) -> Self {
         Self {
-            path: "".into(),
+            path: "/debug".into(),
             inner,
+        }
+    }
+
+    pub fn __debug_new_from_bytes(slice: Box<[u8]>) -> Self {
+        let cursor = std::io::Cursor::new(slice);
+
+        #[allow(non_local_definitions)]
+        impl VirtualFileSystemFileTrait for std::io::Cursor<Box<[u8]>> {
+            fn try_clone_inner(
+                &self,
+            ) -> Result<Box<dyn VirtualFileSystemFileTrait>, VirtualFileSystemError> {
+                Ok(Box::new(std::io::Cursor::new(self.get_ref().clone())))
+            }
+        }
+
+        Self {
+            path: "/debug".into(),
+            inner: Box::new(cursor),
         }
     }
 

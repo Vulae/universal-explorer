@@ -255,6 +255,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "archive"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "flate2",
+ "log",
+ "thiserror 2.0.12",
+ "util",
+]
+
+[[package]]
 name = "arg_enum_proc_macro"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2973,7 +2984,6 @@ name = "renpy"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "env_logger",
  "log",
  "serde",
  "thiserror 2.0.12",
@@ -3243,7 +3253,6 @@ name = "source-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "env_logger",
  "image",
  "log",
  "regex",
@@ -3588,6 +3597,7 @@ name = "universal-explorer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "archive",
  "eframe",
  "egui",
  "egui_dock",
@@ -3656,7 +3666,6 @@ name = "util"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "env_logger",
  "flate2",
  "image",
  "log",

@@ -1,11 +1,13 @@
 pub mod codec;
 pub mod python;
 mod read_ext;
+mod seekable_deflate;
 mod vfs;
 
 use std::{collections::HashMap, fmt::Debug};
 
 pub use read_ext::*;
+pub use seekable_deflate::*;
 pub use vfs::*;
 
 pub fn index_hashmap_to_vec<T: std::fmt::Debug>(hashmap: HashMap<usize, T>) -> Option<Vec<T>> {

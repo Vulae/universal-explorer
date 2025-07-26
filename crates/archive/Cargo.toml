@@ -1,5 +1,5 @@
 [package]
-name = "renpy"
+name = "archive"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,5 +9,4 @@ util = { path = "../util" }
 log.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
-serde.workspace = true
-
+flate2.workspace = true

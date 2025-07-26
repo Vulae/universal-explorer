@@ -132,7 +132,6 @@ impl VPKArchiveFiles {
 
 #[derive(Debug)]
 struct VPKEntry {
-    _fullpath: String,
     archive_index: u16,
     offset: u32,
     length: u32,
@@ -142,8 +141,7 @@ struct VPKEntry {
 pub struct VPK {
     archive_files: VPKArchiveFiles,
     dir_entries_offset: u64,
-    tree: TreeNode<usize>,
-    entries: Vec<VPKEntry>,
+    tree: TreeNode<VPKEntry>,
 }
 
 impl VPK {
@@ -167,7 +165,6 @@ impl VPK {
         let mut tree_data = std::io::Cursor::new(dir.read_var(tree_size as usize)?);
 
         let mut tree = TreeNode::default();
-        let mut entries = Vec::new();
 
         fn nonempty_string(string: String) -> Option<String> {
             match string.len() {
@@ -205,14 +202,14 @@ impl VPK {
                         continue;
                     }
 
-                    if tree.insert(&fullpath, entries.len()) {
-                        entries.push(VPKEntry {
-                            _fullpath: fullpath,
+                    if !tree.insert(
+                        &fullpath,
+                        VPKEntry {
                             archive_index,
                             offset: entry_offset,
                             length: entry_length,
-                        });
-                    } else {
+                        },
+                    ) {
                         log::warn!("VPK failed to insert into tree \"{fullpath}\"");
                     }
                 }
@@ -231,7 +228,6 @@ impl VPK {
             },
             archive_files,
             tree,
-            entries,
         })
     }
 }
@@ -262,10 +258,9 @@ impl VirtualFileSystemTrait for VPK {
         &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<dyn VirtualFileSystemFileTrait>, VirtualFileSystemError> {
-        let Some(TreeNode::Leaf(index)) = self.tree.get(path.to_str()) else {
+        let Some(TreeNode::Leaf(entry)) = self.tree.get(path.to_str()) else {
             return Err(VirtualFileSystemError::FileDoesntExist(path));
         };
-        let entry = self.entries.get(*index).unwrap();
 
         let (archive, offset) = if entry.archive_index == VPK_DIR_INDEX {
             (

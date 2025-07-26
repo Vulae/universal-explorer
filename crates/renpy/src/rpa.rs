@@ -31,7 +31,6 @@ pub fn is_rpa_file(path: &VirtualFileSystemPath) -> bool {
 
 #[derive(Debug)]
 struct RenPyArchiveEntry {
-    _fullpath: String,
     offset: u64,
     length: u64,
 }
@@ -39,8 +38,7 @@ struct RenPyArchiveEntry {
 #[derive(Debug)]
 pub struct RenPyArchive {
     file: VirtualFileSystemFile,
-    tree: TreeNode<usize>,
-    entries: Vec<RenPyArchiveEntry>,
+    tree: TreeNode<RenPyArchiveEntry>,
 }
 
 impl RenPyArchive {
@@ -90,7 +88,6 @@ impl RenPyArchive {
         });
 
         let mut tree = TreeNode::default();
-        let mut entries = Vec::new();
 
         read_entries.into_iter().for_each(|(fullpath, chunks)| {
             let [(offset, length)] = &chunks[..] else {
@@ -101,22 +98,18 @@ impl RenPyArchive {
                 }
                 return;
             };
-            if tree.insert(&fullpath, entries.len()) {
-                entries.push(RenPyArchiveEntry {
-                    _fullpath: fullpath,
+            if !tree.insert(
+                &fullpath,
+                RenPyArchiveEntry {
                     offset: *offset,
                     length: *length,
-                });
-            } else {
+                },
+            ) {
                 log::warn!("RenPyArchive failed to insert into tree \"{fullpath}\"");
             }
         });
 
-        Ok(Self {
-            file,
-            tree,
-            entries,
-        })
+        Ok(Self { file, tree })
     }
 }
 
@@ -146,10 +139,9 @@ impl VirtualFileSystemTrait for RenPyArchive {
         &self,
         path: VirtualFileSystemPath,
     ) -> Result<Box<dyn VirtualFileSystemFileTrait>, VirtualFileSystemError> {
-        let Some(TreeNode::Leaf(index)) = self.tree.get(path.to_str()) else {
+        let Some(TreeNode::Leaf(entry)) = self.tree.get(path.to_str()) else {
             return Err(VirtualFileSystemError::FileDoesntExist(path));
         };
-        let entry = self.entries.get(*index).unwrap();
 
         Ok(Box::new(
             VirtualFileSystemFileSliced::new(

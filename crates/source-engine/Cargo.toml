@@ -6,7 +6,6 @@ rust-version.workspace = true
 
 [dependencies]
 util = { path = "../util" }
-env_logger.workspace = true
 log.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
