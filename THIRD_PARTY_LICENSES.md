@@ -8,7 +8,7 @@ Details for these third-party assets are provided below.
 
 ## Assets: Lucide Icons
 
-**Location:** [`assets/lucide/`](./app/assets/lucide/)
+**Location:** [`app/assets/lucide/`](./app/assets/lucide/)
 
 **Link:** [lucide.dev/license](https://lucide.dev/license)
 
