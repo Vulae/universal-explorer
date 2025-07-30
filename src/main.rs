@@ -1,4 +1,5 @@
 mod app;
+mod app_util;
 mod assets;
 mod egui_util;
 mod loader;

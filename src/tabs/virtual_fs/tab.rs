@@ -2,7 +2,7 @@ use egui::Widget as _;
 use rayon::iter::{IntoParallelIterator as _, ParallelIterator as _};
 use util::{LevenshteinDistance, VirtualFileSystemError, VirtualFileSystemPath};
 
-use crate::{app::AppEvent, tabs::TabTrait};
+use crate::{app::AppEvent, app_util::save_stream, tabs::TabTrait};
 
 use super::{entry::Entry, VirtualFsTab};
 
@@ -29,6 +29,7 @@ fn search_score(search: &str, entry: &str) -> usize {
 enum TabEvent {
     SetDirectory(VirtualFileSystemPath),
     OpenEntry(VirtualFileSystemPath),
+    SaveEntry(VirtualFileSystemPath),
 }
 
 #[derive(Debug)]
@@ -66,15 +67,30 @@ impl ViewingType {
 }
 
 impl VirtualFsTab {
-    fn execute_events(&mut self, events: Vec<TabEvent>) {
-        events.into_iter().for_each(|event| match event {
+    fn execute_event(&mut self, event: TabEvent) -> Result<(), anyhow::Error> {
+        match event {
             TabEvent::SetDirectory(directory) => self.set_directory(directory),
             TabEvent::OpenEntry(entry) => {
-                if let Err(err) = self.open_entry(&entry) {
-                    log::error!("Error while opening entry \"{entry}\": {err}");
+                self.open_entry(&entry)?;
+            }
+            TabEvent::SaveEntry(entry) => {
+                if entry.is_file() {
+                    let file = self.fs.open_file(&entry)?;
+                    save_stream(file, Some(entry.name().unwrap_or("unnamed")))?;
+                } else if entry.is_directory() {
+                    return Err(anyhow::anyhow!("Saving directories is not yet supported"));
                 }
             }
-        });
+        }
+        Ok(())
+    }
+
+    fn execute_events(&mut self, events: Vec<TabEvent>) {
+        for event in events.into_iter() {
+            if let Err(err) = self.execute_event(event) {
+                log::error!("VirtualFsTab error while executing event: {err}");
+            }
+        }
     }
 
     fn update_entries_list(&mut self, ctx: &egui::Context) {
@@ -130,6 +146,21 @@ impl VirtualFsTab {
             entry.path().to_str().to_owned().into(),
             egui::Sense::click(),
         );
+        interact.context_menu(|ui| {
+            if entry.path().is_directory() {
+                if ui.button("Open Directory").clicked() {
+                    events.push(TabEvent::SetDirectory(entry.path().clone()));
+                }
+            } else if entry.path().is_file() {
+                #[allow(clippy::collapsible_if)]
+                if ui.button("Open Entry").clicked() {
+                    events.push(TabEvent::OpenEntry(entry.path().clone()));
+                }
+            }
+            if ui.button("Save").clicked() {
+                events.push(TabEvent::SaveEntry(entry.path().clone()));
+            }
+        });
         if interact.clicked() {
             if entry.path().is_directory() {
                 events.push(TabEvent::SetDirectory(entry.path().clone()));

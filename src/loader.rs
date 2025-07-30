@@ -38,10 +38,10 @@ pub fn try_open_tab_from_fs_and_path<P: Into<VirtualFileSystemPath>>(
         let mut file = fs.open_file(&path)?;
         if source_engine::is_vtf_file(&path, &mut file) {
             let vtf = source_engine::Vtf::load(file)?;
+            let filename = path.name().unwrap();
             return Ok(Some(Tab::new(Box::new(tabs::VtfTab::new(
-                path.name()
-                    .map(|v| v.to_owned())
-                    .unwrap_or(path.to_string()),
+                filename.to_owned(),
+                filename.to_owned(),
                 vtf,
             )))));
         }

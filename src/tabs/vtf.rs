@@ -1,9 +1,12 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use egui::Widget as _;
-use source_engine::{Vtf, VtfContainer};
+use source_engine::{Vtf, VtfContainer, VtfTexture};
 
-use crate::egui_util::ImageSourceWithTextureHandle;
+use crate::{
+    app_util::{change_extension, save_image},
+    egui_util::ImageSourceWithTextureHandle,
+};
 
 use super::TabTrait;
 
@@ -14,47 +17,68 @@ struct VtfTextureIndex {
 }
 
 #[derive(Debug)]
+struct VtfTextureView {
+    texture: VtfTexture,
+    handle: ImageSourceWithTextureHandle<'static>,
+}
+
+#[derive(Debug)]
+struct VtfTextureLoadState {
+    thumbnail: Option<VtfTextureView>,
+    textures: HashMap<VtfTextureIndex, VtfTextureView>,
+}
+
+#[derive(Debug)]
 pub struct VtfTab {
     name: String,
+    filename: String,
     vtf: Vtf,
-    thumbnail_texture: Option<ImageSourceWithTextureHandle<'static>>,
-    textures: HashMap<VtfTextureIndex, ImageSourceWithTextureHandle<'static>>,
     current_frame: u16,
+    state: Option<VtfTextureLoadState>,
 }
 
 impl VtfTab {
-    pub fn new(name: String, vtf: Vtf) -> Self {
+    pub fn new(name: String, filename: String, vtf: Vtf) -> Self {
         Self {
             name,
+            filename,
             vtf,
-            thumbnail_texture: None,
-            textures: HashMap::new(),
             current_frame: 0,
+            state: None,
         }
     }
 
-    fn get_texture_source(
-        &mut self,
-        ctx: &egui::Context,
-        index: VtfTextureIndex,
-    ) -> &egui::ImageSource<'static> {
-        &self
-            .textures
-            .entry(index)
-            .or_insert_with(|| {
-                let VtfContainer::Frames(frames) = self.vtf.container() else {
-                    unimplemented!();
-                };
+    fn load_state(&mut self, ctx: &egui::Context) {
+        if self.state.is_some() {
+            return;
+        }
 
-                ImageSourceWithTextureHandle::from_image(
-                    frames
-                        .texture(index.mipmap, index.frame)
-                        .unwrap()
-                        .to_image(),
-                    ctx,
-                )
-            })
-            .source
+        let VtfContainer::Frames(frames) = self.vtf.container() else {
+            unimplemented!();
+        };
+
+        let thumbnail = self.vtf.lowres().cloned().map(|thumbnail| VtfTextureView {
+            handle: ImageSourceWithTextureHandle::from_image(thumbnail.to_image(), ctx),
+            texture: thumbnail,
+        });
+
+        let mut textures = HashMap::new();
+        for mipmap in 0..frames.num_mipmaps() {
+            for frame in 0..frames.num_frames() {
+                let texture = frames.texture(mipmap, frame).unwrap().clone();
+                textures.insert(
+                    VtfTextureIndex { mipmap, frame },
+                    VtfTextureView {
+                        handle: ImageSourceWithTextureHandle::from_image(texture.to_image(), ctx),
+                        texture,
+                    },
+                );
+            }
+        }
+        self.state = Some(VtfTextureLoadState {
+            thumbnail,
+            textures,
+        });
     }
 }
 
@@ -64,6 +88,9 @@ impl TabTrait for VtfTab {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui) {
+        self.load_state(ui.ctx());
+        let state = self.state.as_ref().unwrap();
+
         let VtfContainer::Frames(frames) = self.vtf.container() else {
             unimplemented!();
         };
@@ -76,20 +103,31 @@ impl TabTrait for VtfTab {
             frames.num_frames(),
         ));
 
-        if let Some(thumbnail) = self.vtf.lowres() {
-            let source = &self
-                .thumbnail_texture
-                .get_or_insert_with(|| {
-                    ImageSourceWithTextureHandle::from_image(thumbnail.to_image(), ui.ctx())
-                })
-                .source;
+        if let Some(thumbnail) = &state.thumbnail {
             ui.horizontal(|ui| {
                 let rect = ui.label("thumbnail: ").rect;
                 ui.add(
-                    egui::Image::new(source.clone())
+                    egui::Image::new(thumbnail.handle.source.clone())
                         .fit_to_exact_size(egui::Vec2::INFINITY)
-                        .max_height(rect.height()),
-                );
+                        .max_height(rect.height())
+                        .sense(egui::Sense::CLICK),
+                )
+                .context_menu(|ui| {
+                    ui.label(format!(
+                        "{}x{} {:?}",
+                        thumbnail.texture.width(),
+                        thumbnail.texture.height(),
+                        thumbnail.texture.format(),
+                    ));
+                    if ui.button("save").clicked() {
+                        if let Err(err) = save_image(
+                            &thumbnail.texture.to_image(),
+                            Some(&change_extension(&self.filename, "png")),
+                        ) {
+                            log::error!("Failed to save image: {err}");
+                        }
+                    }
+                });
             });
         }
 
@@ -99,23 +137,42 @@ impl TabTrait for VtfTab {
                 .ui(ui);
         }
 
-        let mut view_sources = Vec::new();
+        let mut views = Vec::new();
         for mipmap in 0..frames.num_mipmaps() {
-            view_sources.push(
-                self.get_texture_source(
-                    ui.ctx(),
-                    VtfTextureIndex {
+            views.push(
+                state
+                    .textures
+                    .get(&VtfTextureIndex {
                         mipmap,
                         frame: self.current_frame,
-                    },
-                )
-                .clone(),
+                    })
+                    .unwrap(),
             );
         }
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            view_sources.into_iter().for_each(|source| {
-                ui.add(egui::Image::new(source).max_width(ui.available_width()));
+            views.into_iter().for_each(|view| {
+                ui.add(
+                    egui::Image::new(view.handle.source.clone())
+                        .max_width(ui.available_width())
+                        .sense(egui::Sense::CLICK),
+                )
+                .context_menu(|ui| {
+                    ui.label(format!(
+                        "{}x{} {:?}",
+                        view.texture.width(),
+                        view.texture.height(),
+                        view.texture.format(),
+                    ));
+                    if ui.button("save").clicked() {
+                        if let Err(err) = save_image(
+                            &view.texture.to_image(),
+                            Some(&change_extension(&self.filename, "png")),
+                        ) {
+                            log::error!("Failed to save image: {err}");
+                        }
+                    }
+                });
             });
         });
     }
