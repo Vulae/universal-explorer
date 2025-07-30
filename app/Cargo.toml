@@ -1,0 +1,34 @@
+[package]
+name = "universal-explorer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["archive", "source_engine", "renpy"]
+
+archive = ["dep:util_archive"]
+source_engine = ["dep:source_engine"]
+renpy = ["dep:renpy"]
+
+[dependencies]
+util_general = { path = "../crates/utils/general" }
+util_vfs = { path = "../crates/utils/vfs" }
+util_archive = { path = "../crates/utils/archive", optional = true }
+source_engine = { path = "../crates/viewers/source_engine", optional = true }
+renpy = { path = "../crates/viewers/renpy", optional = true }
+env_logger = "0.11.8"
+log.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+image.workspace = true
+egui = "0.32.0"
+eframe = "0.32.0"
+egui_extras = { version = "0.32.0", features = ["image", "svg"] }
+egui_flex = "0.4.0"
+uuid = { version = "1.17.0", features = ["v7"] }
+sysinfo = { version = "0.36.1", default-features = false, features = ["component", "system", "user"] }
+egui_dock = "0.17.0"
+home = "0.5.11"
+rayon = "1.10.0"
+rfd = "0.15.4"

@@ -1,18 +1,13 @@
-[package]
-name = "universal-explorer"
-description = "TODO: DESCRIPTION"
-license = "MIT-0"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-
 [workspace]
 members = [
-    "crates/*",
+    "app",
+    "crates/utils/*",
+    "crates/viewers/*",
 ]
 package.version = "0.1.0"
 package.edition = "2024"
 package.rust-version = "1.88"
+resolver = "3"
 
 [workspace.dependencies]
 log = "0.4.27"
@@ -22,24 +17,3 @@ regex = "1.11.1"
 image = "0.25.6"
 flate2 = "1.1.2"
 serde = { version = "1.0.219", features = ["derive"] }
-
-[dependencies]
-util = { path = "crates/util" }
-archive = { path = "crates/archive" }
-source-engine = { path = "crates/source-engine" }
-renpy = { path = "crates/renpy" }
-env_logger = "0.11.8"
-log.workspace = true
-thiserror.workspace = true
-anyhow.workspace = true
-image.workspace = true
-egui = "0.32.0"
-eframe = "0.32.0"
-egui_extras = { version = "0.32.0", features = ["image", "svg"] }
-egui_flex = "0.4.0"
-uuid = { version = "1.17.0", features = ["v7"] }
-sysinfo = { version = "0.36.1", default-features = false, features = ["component", "system", "user"] }
-egui_dock = "0.17.0"
-home = "0.5.11"
-rayon = "1.10.0"
-rfd = "0.15.4"

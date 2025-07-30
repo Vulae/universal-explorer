@@ -1,0 +1,15 @@
+[package]
+name = "source_engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+util_general = { path = "../../utils/general" }
+util_vfs = { path = "../../utils/vfs" }
+util_codec = { path = "../../utils/codec" }
+log.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+regex.workspace = true
+image.workspace = true

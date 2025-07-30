@@ -1,0 +1,12 @@
+[package]
+name = "util_codec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+log.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+flate2.workspace = true
+image.workspace = true
