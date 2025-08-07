@@ -3810,6 +3810,7 @@ dependencies = [
  "image",
  "log",
  "thiserror 2.0.12",
+ "util_general",
 ]
 
 [[package]]

@@ -1,15 +1,16 @@
-/// Implementation of the ZIP archive format.
-/// https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
-///
-/// SUPPORTED COMPRESSION METHODS:
-///     Store (Uncompressed)
-///     Deflate
-///     LZMA
-///
-/// NOT SUPPORTED:
-///     ZIP64
-///     Multi-file archives.
-///
+//! Implementation of the ZIP archive format.
+//! https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
+//!
+//! SUPPORTED COMPRESSION METHODS:
+//!     Store (Uncompressed)
+//!     Deflate
+//!     LZMA
+//!
+//! NOT SUPPORTED:
+//!     ZIP64
+//!     Multi-file archives.
+//!
+
 use std::io::{Read, Seek};
 
 use file::ZipFile;
@@ -19,7 +20,10 @@ use reader::{
 };
 use thiserror::Error;
 use util_general::{ReadExt as _, TreeNode};
-use util_vfs::{VirtualFileSystemError, VirtualFileSystemFile, VirtualFileSystemFileSliced, VirtualFileSystemFileTrait, VirtualFileSystemPath, VirtualFileSystemTrait};
+use util_vfs::{
+    VirtualFileSystemError, VirtualFileSystemFile, VirtualFileSystemFileSliced,
+    VirtualFileSystemFileTrait, VirtualFileSystemPath, VirtualFileSystemTrait,
+};
 
 mod file;
 mod reader;

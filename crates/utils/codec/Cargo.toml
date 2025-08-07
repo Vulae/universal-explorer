@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+util_general = { path = "../general" }
 log.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true

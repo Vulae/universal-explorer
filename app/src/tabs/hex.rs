@@ -114,6 +114,7 @@ impl TabTrait for HexTab {
         let data = match self.update_data(len) {
             Ok(data) => data,
             Err(err) => {
+                log::error!("Error while updating hex tab: {err}");
                 ui.label(format!("Error: {err}"));
                 return;
             }

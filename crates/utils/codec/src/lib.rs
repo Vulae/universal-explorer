@@ -1,9 +1,13 @@
 use image::Rgb;
 
 pub mod bcn;
+mod lzma;
 mod seekable_deflate;
+mod seekable_lzma;
 
+pub use lzma::*;
 pub use seekable_deflate::*;
+pub use seekable_lzma::*;
 
 pub fn lerp_u8<const N: u16, const D: u16>(a: u8, b: u8) -> u8 {
     // if N == 0 {

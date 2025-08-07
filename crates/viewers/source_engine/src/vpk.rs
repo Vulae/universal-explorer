@@ -1,10 +1,14 @@
-/// https://developer.valvesoftware.com/wiki/VPK_(file_format)
+//! https://developer.valvesoftware.com/wiki/VPK_(file_format)
+
 use std::{collections::HashMap, io::Seek};
 
 use log::debug;
 use thiserror::Error;
 use util_general::{index_hashmap_to_vec, ReadExt as _, TreeNode};
-use util_vfs::{VirtualFileSystem, VirtualFileSystemError, VirtualFileSystemFile, VirtualFileSystemFileSliced, VirtualFileSystemFileTrait, VirtualFileSystemPath, VirtualFileSystemTrait};
+use util_vfs::{
+    VirtualFileSystem, VirtualFileSystemError, VirtualFileSystemFile, VirtualFileSystemFileSliced,
+    VirtualFileSystemFileTrait, VirtualFileSystemPath, VirtualFileSystemTrait,
+};
 
 #[derive(Debug, Error)]
 pub enum VPKError {
@@ -48,31 +52,16 @@ impl VPKArchiveFiles {
         Self { dir, archives }
     }
 
-    pub fn locate_archives<P: Into<VirtualFileSystemPath>>(
+    fn locate_archive_multifile(
         fs: &mut VirtualFileSystem,
-        file: P,
+        path: VirtualFileSystemPath,
+        vpk_name: &str,
     ) -> Result<Self, VPKError> {
-        let file: VirtualFileSystemPath = file.into();
-        if !file.is_file() {
-            todo!();
-        }
-        let filename = file.name().unwrap();
-        if !filename.ends_with(".vpk") {
-            todo!();
-        }
-        let vpk_name = regex::Regex::new(r"^(.+)_(?:dir|\d\d\d)\.vpk$")
-            .unwrap()
-            .captures(filename)
-            .ok_or(VPKError::CouldNotLocateArchiveFiles("File is not VPK"))?
-            .get(1)
-            .ok_or(VPKError::CouldNotLocateArchiveFiles("File is not VPK"))?
-            .as_str();
-
         let mut dir = None;
         let mut archives = HashMap::new();
 
         #[allow(unused_must_use)]
-        fs.read_directory(file.parent().unwrap())?
+        fs.read_directory(path.parent().unwrap())?
             .into_iter()
             .filter_map(|path| {
                 let captures = regex::Regex::new(r"^(.+)_(dir|\d\d\d)\.vpk$")
@@ -110,6 +99,36 @@ impl VPKArchiveFiles {
                 .map(|path| fs.open_file(path))
                 .collect::<Result<_, _>>()?,
         })
+    }
+
+    pub fn locate_archives<P: Into<VirtualFileSystemPath>>(
+        fs: &mut VirtualFileSystem,
+        path: P,
+    ) -> Result<Self, VPKError> {
+        let path: VirtualFileSystemPath = path.into();
+        if !path.is_file() {
+            return Err(VPKError::FileInvalidArchive);
+        }
+        let Some(filename) = path.name() else {
+            return Err(VPKError::FileInvalidArchive);
+        };
+        let filename = filename.to_owned();
+        if !filename.ends_with(".vpk") {
+            return Err(VPKError::FileInvalidArchive);
+        }
+        if let Some(vpk_name) = regex::Regex::new(r"^(.+)_(?:dir|\d\d\d)\.vpk$")
+            .unwrap()
+            .captures(&filename)
+            .and_then(|captures| captures.get(1))
+            .map(|inner| inner.as_str())
+        {
+            Self::locate_archive_multifile(fs, path, vpk_name)
+        } else {
+            Ok(Self {
+                dir: fs.open_file(path)?,
+                archives: Vec::new(),
+            })
+        }
     }
 
     fn validate(&mut self, max_index: Option<u16>) -> Result<(), VPKError> {

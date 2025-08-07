@@ -1,61 +1,62 @@
 use std::io::{Read, Seek};
 
+use crate::{LzmaDecodeOptions, LzmaDecoder, LzmaState};
+
 // TODO: Make better, every like 50MiB of read data, we store a checkpoint that contains the
-// internal state of the deflate decoder, so if we want to seek somewhere we go to the nearest
+// internal state of the LZMA decoder, so if we want to seek somewhere we go to the nearest
 // checkpoint then decode until we hit where we want to seek to.
 
 // For now, every time we seek to a previous part of the stream, we reset the decoder.
 
 #[derive(Debug)]
-pub struct SeekableDeflateDecoder<R: Read + Seek> {
-    decoder: Option<flate2::read::DeflateDecoder<R>>,
+pub struct SeekableLZMADecoder<R: Read + Seek> {
+    inner: R,
+    options: LzmaDecodeOptions,
+    state: LzmaState,
     position: u64,
     uncompressed_size: u64,
 }
 
-impl<R: Read + Seek> SeekableDeflateDecoder<R> {
-    pub fn new(inner: R, uncompressed_size: u64) -> Self {
+impl<R: Read + Seek> SeekableLZMADecoder<R> {
+    pub fn new(inner: R, uncompressed_size: u64, options: LzmaDecodeOptions) -> Self {
         Self {
-            decoder: Some(flate2::read::DeflateDecoder::new(inner)),
+            inner,
+            options,
+            state: LzmaState::new(options),
             position: 0,
             uncompressed_size,
         }
     }
 
     pub fn into_inner(self) -> R {
-        self.decoder.unwrap().into_inner()
+        self.inner
     }
 
     pub fn get_ref(&self) -> &R {
-        self.decoder.as_ref().unwrap().get_ref()
+        &self.inner
     }
 
     pub fn get_mut(&mut self) -> &mut R {
-        self.decoder.as_mut().unwrap().get_mut()
-    }
-
-    fn decoder(&mut self) -> &mut flate2::read::DeflateDecoder<R> {
-        self.decoder.as_mut().unwrap()
+        &mut self.inner
     }
 
     fn reset(&mut self) -> std::io::Result<()> {
-        self.decoder.as_mut().unwrap().get_mut().rewind()?;
-        let decoder = self.decoder.take().unwrap();
-        self.decoder = Some(flate2::read::DeflateDecoder::new(decoder.into_inner()));
+        self.inner.rewind()?;
+        self.state = LzmaState::new(self.options);
         self.position = 0;
         Ok(())
     }
 }
 
-impl<R: Read + Seek> Read for SeekableDeflateDecoder<R> {
+impl<R: Read + Seek> Read for SeekableLZMADecoder<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let amount = self.decoder().read(buf)?;
+        let amount = LzmaDecoder::new(&mut self.inner, &mut self.state).read(buf)?;
         self.position += amount as u64;
         Ok(amount)
     }
 }
 
-impl<R: Read + Seek> Seek for SeekableDeflateDecoder<R> {
+impl<R: Read + Seek> Seek for SeekableLZMADecoder<R> {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
         let seek_pos = match pos {
             std::io::SeekFrom::Start(start_offset) => start_offset,

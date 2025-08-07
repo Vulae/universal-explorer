@@ -1,7 +1,7 @@
 use std::io::{Read, Seek};
 
 use util_general::is_likely_utf8;
-use util_vfs::{VirtualFileSystem, VirtualFileSystemPath};
+use util_vfs::{VirtualFileSystem, VirtualFileSystemFile, VirtualFileSystemPath};
 
 use crate::{
     assets,
@@ -59,6 +59,21 @@ pub fn try_open_tab_from_fs_and_path<P: Into<VirtualFileSystemPath>>(
                 .unwrap_or(path.to_string()),
             VirtualFileSystem::new(Box::new(vpk)),
         )))));
+    }
+
+    #[cfg(all(feature = "source_engine", feature = "archive"))]
+    if source_engine::is_bsp_file(&path) {
+        if let Some(bsp) = source_engine::bsp_open_pakfile(fs.open_file(&path)?)? {
+            let zip = util_archive::Zip::load(VirtualFileSystemFile::__debug_new_from_trait(
+                Box::new(bsp),
+            ))?;
+            return Ok(Some(Tab::new(Box::new(tabs::VirtualFsTab::new(
+                path.name()
+                    .map(|v| v.to_owned())
+                    .unwrap_or(path.to_string()),
+                VirtualFileSystem::new(Box::new(zip)),
+            )))));
+        }
     }
 
     #[cfg(feature = "renpy")]

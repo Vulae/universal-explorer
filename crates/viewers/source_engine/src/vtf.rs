@@ -1,9 +1,13 @@
-/// https://developer.valvesoftware.com/wiki/VTF_(Valve_Texture_Format)
+//! https://developer.valvesoftware.com/wiki/VTF_(Valve_Texture_Format)
+
 use std::io::{Read, Seek};
 
 use thiserror::Error;
+use util_codec::{
+    bcn::{decode_bc1, decode_bc2, decode_bc3},
+    decode_f16, decode_rgb565, upscale_lower_u8,
+};
 use util_general::ReadExt as _;
-use util_codec::{bcn::{decode_bc1, decode_bc2, decode_bc3}, decode_f16, decode_rgb565, upscale_lower_u8};
 use util_vfs::VirtualFileSystemPath;
 
 #[derive(Debug, Error)]
