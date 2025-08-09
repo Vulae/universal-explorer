@@ -1,10 +1,36 @@
-use tab::{EntriesContainer, ViewingType};
-use util_vfs::{VirtualFileSystem, VirtualFileSystemPath};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
-use crate::{app::AppEvent, loader::try_open_tab_from_fs_and_path};
+use icon::EntryIcon;
+use ui::ViewingType;
+use util_vfs::{VirtualFileSystem, VirtualFileSystemError, VirtualFileSystemPath};
 
-mod entry;
-mod tab;
+use crate::{app::AppEvent, app_util::save_stream, loader::try_open_tab_from_fs_and_path};
+
+mod icon;
+mod ui;
+
+#[derive(Debug)]
+enum TabEvent {
+    SetDirectory(VirtualFileSystemPath),
+    OpenEntry(VirtualFileSystemPath),
+    SaveEntry(VirtualFileSystemPath),
+}
+
+#[derive(Debug)]
+pub enum EntriesContainer {
+    NeedLoading,
+    Error(VirtualFileSystemError),
+    Entries(Box<[VirtualFileSystemPath]>),
+}
+
+#[derive(Debug)]
+pub enum EntryIconLoadState {
+    Loading,
+    Loaded(EntryIcon),
+}
 
 #[derive(Debug)]
 pub struct VirtualFsTab {
@@ -12,6 +38,7 @@ pub struct VirtualFsTab {
     fs: VirtualFileSystem,
     directory: VirtualFileSystemPath,
     entries: EntriesContainer,
+    icons: Arc<Mutex<HashMap<VirtualFileSystemPath, EntryIconLoadState>>>,
     events: Vec<AppEvent>,
     viewing_type: ViewingType,
     path_search: String,
@@ -25,6 +52,7 @@ impl VirtualFsTab {
             fs,
             directory: "/".into(),
             entries: EntriesContainer::NeedLoading,
+            icons: Arc::new(Mutex::new(HashMap::new())),
             events: Vec::new(),
             viewing_type: ViewingType::list_default(),
             path_search: String::new(),
@@ -43,5 +71,31 @@ impl VirtualFsTab {
             self.events.push(AppEvent::CreateTab(tab));
         }
         Ok(())
+    }
+
+    fn execute_event(&mut self, event: TabEvent) -> Result<(), anyhow::Error> {
+        match event {
+            TabEvent::SetDirectory(directory) => self.set_directory(directory),
+            TabEvent::OpenEntry(entry) => {
+                self.open_entry(&entry)?;
+            }
+            TabEvent::SaveEntry(entry) => {
+                if entry.is_file() {
+                    let file = self.fs.open_file(&entry)?;
+                    save_stream(file, Some(entry.name().unwrap_or("unnamed")))?;
+                } else if entry.is_directory() {
+                    return Err(anyhow::anyhow!("Saving directories is not yet supported"));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn execute_events(&mut self, events: Vec<TabEvent>) {
+        for event in events.into_iter() {
+            if let Err(err) = self.execute_event(event) {
+                log::error!("VirtualFsTab error while executing event: {err}");
+            }
+        }
     }
 }

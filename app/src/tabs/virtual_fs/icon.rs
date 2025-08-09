@@ -24,22 +24,6 @@ impl EntryIcon {
             }
         }
     }
-}
-
-#[derive(Debug)]
-pub struct Entry {
-    path: VirtualFileSystemPath,
-    icon: EntryIcon,
-}
-
-impl Entry {
-    pub fn path(&self) -> &VirtualFileSystemPath {
-        &self.path
-    }
-
-    pub fn icon(&self) -> &EntryIcon {
-        &self.icon
-    }
 
     pub fn load<P: Into<VirtualFileSystemPath>>(
         fs: &VirtualFileSystem,
@@ -52,22 +36,16 @@ impl Entry {
             Ok(image) => image,
             Err(err) => {
                 log::error!("Error while loading thumbnail: {err}");
-                return Entry {
-                    path,
-                    icon: EntryIcon::ImageSource(assets::NOTEXTURE.to_owned()),
-                };
+                return EntryIcon::ImageSource(assets::NOTEXTURE.to_owned());
             }
         };
 
         match image {
-            None => Entry {
-                icon: EntryIcon::ImageSource(if path.is_directory() {
-                    assets::LUCIDE_FOLDER.to_owned()
-                } else {
-                    assets::LUCIDE_FILE.to_owned()
-                }),
-                path,
-            },
+            None => EntryIcon::ImageSource(if path.is_directory() {
+                assets::LUCIDE_FOLDER.to_owned()
+            } else {
+                assets::LUCIDE_FILE.to_owned()
+            }),
             Some(LoaderImage::Image(image)) => {
                 let image = if image.width() > ENTRY_THUMBNAIL_WIDTH
                     || image.height() > ENTRY_THUMBNAIL_HEIGHT
@@ -83,18 +61,12 @@ impl Entry {
                 let handle = image_handle(image, ctx);
                 let source =
                     egui::ImageSource::Texture(egui::load::SizedTexture::from_handle(&handle));
-                Entry {
-                    icon: EntryIcon::ImageSourceWithTextureHandle(ImageSourceWithTextureHandle {
-                        source,
-                        handle,
-                    }),
-                    path,
-                }
+                EntryIcon::ImageSourceWithTextureHandle(ImageSourceWithTextureHandle {
+                    source,
+                    handle,
+                })
             }
-            Some(LoaderImage::Source(image_source)) => Entry {
-                icon: EntryIcon::ImageSource(image_source),
-                path,
-            },
+            Some(LoaderImage::Source(image_source)) => EntryIcon::ImageSource(image_source),
         }
     }
 }

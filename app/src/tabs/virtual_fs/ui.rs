@@ -1,11 +1,10 @@
 use egui::Widget as _;
-use rayon::iter::{IntoParallelIterator as _, ParallelIterator as _};
 use util_general::LevenshteinDistance;
-use util_vfs::{VirtualFileSystemError, VirtualFileSystemPath};
+use util_vfs::VirtualFileSystemPath;
 
-use crate::{app::AppEvent, app_util::save_stream, tabs::TabTrait};
+use crate::{app::AppEvent, tabs::TabTrait};
 
-use super::{entry::Entry, VirtualFsTab};
+use super::{icon::EntryIcon, EntriesContainer, EntryIconLoadState, TabEvent, VirtualFsTab};
 
 fn path_parents(path: &VirtualFileSystemPath) -> Vec<VirtualFileSystemPath> {
     let mut paths = Vec::new();
@@ -24,20 +23,6 @@ fn search_score(search: &str, entry: &str) -> usize {
         .map(|slice| LevenshteinDistance::new(1, 1, 1).distance(search, slice))
         .min()
         .unwrap_or(LevenshteinDistance::new(1, 1, 1).distance(search, entry))
-}
-
-#[derive(Debug)]
-enum TabEvent {
-    SetDirectory(VirtualFileSystemPath),
-    OpenEntry(VirtualFileSystemPath),
-    SaveEntry(VirtualFileSystemPath),
-}
-
-#[derive(Debug)]
-pub enum EntriesContainer {
-    NeedLoading,
-    Error(VirtualFileSystemError),
-    Entries(Vec<Entry>),
 }
 
 #[derive(Debug)]
@@ -68,32 +53,6 @@ impl ViewingType {
 }
 
 impl VirtualFsTab {
-    fn execute_event(&mut self, event: TabEvent) -> Result<(), anyhow::Error> {
-        match event {
-            TabEvent::SetDirectory(directory) => self.set_directory(directory),
-            TabEvent::OpenEntry(entry) => {
-                self.open_entry(&entry)?;
-            }
-            TabEvent::SaveEntry(entry) => {
-                if entry.is_file() {
-                    let file = self.fs.open_file(&entry)?;
-                    save_stream(file, Some(entry.name().unwrap_or("unnamed")))?;
-                } else if entry.is_directory() {
-                    return Err(anyhow::anyhow!("Saving directories is not yet supported"));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn execute_events(&mut self, events: Vec<TabEvent>) {
-        for event in events.into_iter() {
-            if let Err(err) = self.execute_event(event) {
-                log::error!("VirtualFsTab error while executing event: {err}");
-            }
-        }
-    }
-
     fn update_entries_list(&mut self, ctx: &egui::Context) {
         if !matches!(self.entries, EntriesContainer::NeedLoading) {
             return;
@@ -102,13 +61,29 @@ impl VirtualFsTab {
             Ok(mut entries) => {
                 entries.sort();
                 entries.sort_by_key(|a| !a.is_directory());
-                // TODO: Non-blocking multi-threaded loading.
-                self.entries = EntriesContainer::Entries(
-                    entries
-                        .into_par_iter()
-                        .map(|path| Entry::load(&self.fs, path, ctx))
-                        .collect(),
-                );
+
+                let mut icons = self.icons.lock().unwrap();
+                entries.iter().for_each(|entry| {
+                    if icons.contains_key(entry) {
+                        return;
+                    }
+                    icons.insert(entry.clone(), EntryIconLoadState::Loading);
+                    // TODO: Don't just spawn a thread and hope it goes well.
+                    std::thread::spawn({
+                        let entry = entry.clone();
+                        let icons = self.icons.clone();
+                        let fs = self.fs.clone();
+                        let ctx = ctx.clone();
+                        move || {
+                            let icon = EntryIcon::load(&fs, &entry, &ctx);
+                            let mut icons = icons.lock().unwrap();
+                            icons.insert(entry, EntryIconLoadState::Loaded(icon));
+                            ctx.request_repaint();
+                        }
+                    });
+                });
+
+                self.entries = EntriesContainer::Entries(entries);
             }
             Err(err) => {
                 self.entries = EntriesContainer::Error(err);
@@ -116,15 +91,23 @@ impl VirtualFsTab {
         }
     }
 
-    fn ui_entry(&self, entry: &Entry, ui: &mut egui::Ui, events: &mut Vec<TabEvent>) {
+    fn ui_entry(
+        &self,
+        entry: &VirtualFileSystemPath,
+        icon: Option<&EntryIconLoadState>,
+        ui: &mut egui::Ui,
+        events: &mut Vec<TabEvent>,
+    ) {
         let base = match self.viewing_type {
             ViewingType::Grid { .. } => ui.group(|ui| {
                 ui.set_min_size(ui.available_size());
                 ui.vertical_centered(|ui| {
-                    egui::Image::new(entry.icon().image_source().to_owned())
-                        .max_size(ui.available_size())
-                        .ui(ui);
-                    if let Some(name) = entry.path().name() {
+                    if let Some(EntryIconLoadState::Loaded(icon)) = icon {
+                        egui::Image::new(icon.image_source().to_owned())
+                            .max_size(ui.available_size())
+                            .ui(ui);
+                    }
+                    if let Some(name) = entry.name() {
                         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
                         ui.label(name);
                     }
@@ -132,10 +115,12 @@ impl VirtualFsTab {
             }),
             ViewingType::List { .. } => ui.horizontal_centered(|ui| {
                 ui.set_min_width(ui.available_width());
-                egui::Image::new(entry.icon().image_source().to_owned())
-                    .max_size(ui.available_size())
-                    .ui(ui);
-                if let Some(name) = entry.path().name() {
+                if let Some(EntryIconLoadState::Loaded(icon)) = icon {
+                    egui::Image::new(icon.image_source().to_owned())
+                        .max_size(ui.available_size())
+                        .ui(ui);
+                }
+                if let Some(name) = entry.name() {
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
                     ui.label(name);
                 }
@@ -144,29 +129,29 @@ impl VirtualFsTab {
 
         let interact = ui.interact(
             base.response.rect,
-            entry.path().to_str().to_owned().into(),
+            entry.to_str().to_owned().into(),
             egui::Sense::click(),
         );
         interact.context_menu(|ui| {
-            if entry.path().is_directory() {
+            if entry.is_directory() {
                 if ui.button("Open Directory").clicked() {
-                    events.push(TabEvent::SetDirectory(entry.path().clone()));
+                    events.push(TabEvent::SetDirectory(entry.clone()));
                 }
-            } else if entry.path().is_file() {
+            } else if entry.is_file() {
                 #[allow(clippy::collapsible_if)]
                 if ui.button("Open Entry").clicked() {
-                    events.push(TabEvent::OpenEntry(entry.path().clone()));
+                    events.push(TabEvent::OpenEntry(entry.clone()));
                 }
             }
             if ui.button("Save").clicked() {
-                events.push(TabEvent::SaveEntry(entry.path().clone()));
+                events.push(TabEvent::SaveEntry(entry.clone()));
             }
         });
         if interact.clicked() {
-            if entry.path().is_directory() {
-                events.push(TabEvent::SetDirectory(entry.path().clone()));
-            } else if entry.path().is_file() {
-                events.push(TabEvent::OpenEntry(entry.path().clone()));
+            if entry.is_directory() {
+                events.push(TabEvent::SetDirectory(entry.clone()));
+            } else if entry.is_file() {
+                events.push(TabEvent::OpenEntry(entry.clone()));
             }
         }
     }
@@ -179,65 +164,68 @@ impl VirtualFsTab {
             EntriesContainer::Error(err) => {
                 ui.label(format!("ERROR: {err:?}"));
             }
-            EntriesContainer::Entries(entries) => match self.viewing_type {
-                ViewingType::Grid { size: grid_size } => {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.set_min_size(ui.available_size());
+            EntriesContainer::Entries(entries) => {
+                let icons = self.icons.lock().unwrap();
+                match self.viewing_type {
+                    ViewingType::Grid { size: grid_size } => {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            ui.set_min_size(ui.available_size());
 
-                        let size = egui::Vec2::new(grid_size, grid_size * (4.0 / 3.0));
-                        let spacing = egui::Vec2::splat(grid_size / 16.0);
+                            let size = egui::Vec2::new(grid_size, grid_size * (4.0 / 3.0));
+                            let spacing = egui::Vec2::splat(grid_size / 16.0);
 
-                        let num_cols = ((ui.available_width() / (size.x + spacing.x * 2.0)).floor()
-                            as usize)
+                            let num_cols = ((ui.available_width() / (size.x + spacing.x * 2.0))
+                                .floor() as usize)
+                                .max(1);
+
+                            egui::Grid::new(&self.name)
+                                .num_columns(num_cols)
+                                .spacing(spacing)
+                                .min_col_width(size.x)
+                                .max_col_width(size.x)
+                                .min_row_height(size.y)
+                                .show(ui, |ui| {
+                                    entries.iter().enumerate().for_each(|(i, entry)| {
+                                        ui.push_id(entry.to_str(), |ui| {
+                                            ui.set_max_size(size);
+                                            self.ui_entry(entry, icons.get(entry), ui, events);
+                                        });
+
+                                        if ((i + 1) % num_cols) == 0 {
+                                            ui.end_row();
+                                        }
+                                    });
+                                });
+                        });
+                    }
+                    ViewingType::List {
+                        height: list_height,
+                        cols: list_cols,
+                    } => {
+                        let num_cols = list_cols
+                            .unwrap_or((ui.available_width() / 256.0).floor() as usize)
                             .max(1);
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            egui::Grid::new(&self.name)
+                                .num_columns(num_cols)
+                                .striped(true)
+                                .min_row_height(list_height)
+                                .max_col_width(ui.available_width() / (num_cols as f32))
+                                .show(ui, |ui| {
+                                    entries.iter().enumerate().for_each(|(i, entry)| {
+                                        ui.push_id(entry.to_str(), |ui| {
+                                            self.ui_entry(entry, icons.get(entry), ui, events);
+                                        });
 
-                        egui::Grid::new(&self.name)
-                            .num_columns(num_cols)
-                            .spacing(spacing)
-                            .min_col_width(size.x)
-                            .max_col_width(size.x)
-                            .min_row_height(size.y)
-                            .show(ui, |ui| {
-                                entries.iter().enumerate().for_each(|(i, entry)| {
-                                    ui.push_id(entry.path().to_str(), |ui| {
-                                        ui.set_max_size(size);
-                                        self.ui_entry(entry, ui, events);
+                                        if ((i + 1) % num_cols) == 0 {
+                                            ui.end_row();
+                                        }
                                     });
-
-                                    if ((i + 1) % num_cols) == 0 {
-                                        ui.end_row();
-                                    }
                                 });
-                            });
-                    });
+                        });
+                    }
                 }
-                ViewingType::List {
-                    height: list_height,
-                    cols: list_cols,
-                } => {
-                    let num_cols = list_cols
-                        .unwrap_or((ui.available_width() / 256.0).floor() as usize)
-                        .max(1);
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        egui::Grid::new(&self.name)
-                            .num_columns(num_cols)
-                            .striped(true)
-                            .min_row_height(list_height)
-                            .max_col_width(ui.available_width() / (num_cols as f32))
-                            .show(ui, |ui| {
-                                entries.iter().enumerate().for_each(|(i, entry)| {
-                                    ui.push_id(entry.path().to_str(), |ui| {
-                                        self.ui_entry(entry, ui, events);
-                                    });
-
-                                    if ((i + 1) % num_cols) == 0 {
-                                        ui.end_row();
-                                    }
-                                });
-                            });
-                    });
-                }
-            },
+            }
         }
     }
 
@@ -270,10 +258,7 @@ impl VirtualFsTab {
             if let EntriesContainer::Entries(entries) = &mut self.entries {
                 let mut dirs = entries
                     .iter()
-                    .filter_map(|dir| {
-                        (dir.path().is_directory() && dir.path().name().is_some())
-                            .then_some(dir.path())
-                    })
+                    .filter(|dir| dir.is_directory() && dir.name().is_some())
                     .map(|dir| (dir, search_score(&self.path_search, dir.name().unwrap())))
                     .filter(|(_, score)| *score <= 7)
                     .collect::<Vec<_>>();
