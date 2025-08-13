@@ -425,9 +425,19 @@ impl State {
             // Opcode::REDUCE => todo!(),
             // Opcode::STRING => todo!(),
             // Opcode::BINSTRING => todo!(),
-            // Opcode::SHORT_BINSTRING => todo!(),
+            Opcode::SHORT_BINSTRING => {
+                let len = u8::from_le_bytes(reader.read_const()?);
+                let str_buf = reader.read_var(len as usize)?;
+                let str = String::from_utf8(str_buf.to_vec())?;
+                self.stack.push(ParseValue::String(str))?;
+            }
             // Opcode::UNICODE => todo!(),
-            // Opcode::BINUNICODE => todo!(),
+            Opcode::BINUNICODE => {
+                let len = u32::from_le_bytes(reader.read_const()?);
+                let str_buf = reader.read_var(len as usize)?;
+                let str = String::from_utf8(str_buf.to_vec())?;
+                self.stack.push(ParseValue::String(str))?;
+            }
             Opcode::APPEND => {
                 let item = self.stack.pop()?;
                 if let ParseValue::List(list) = &mut *self.stack.last()?.borrow_mut() {
@@ -460,8 +470,18 @@ impl State {
             }
             // Opcode::OBJ => todo!(),
             // Opcode::PUT => todo!(),
-            // Opcode::BINPUT => todo!(),
-            // Opcode::LONG_BINPUT => todo!(),
+            Opcode::BINPUT => {
+                self.memo.set(
+                    u8::from_le_bytes(reader.read_const()?) as u64,
+                    self.stack.last()?.clone(),
+                );
+            }
+            Opcode::LONG_BINPUT => {
+                self.memo.set(
+                    u32::from_le_bytes(reader.read_const()?) as u64,
+                    self.stack.last()?.clone(),
+                );
+            }
             // Opcode::SETITEM => todo!(),
             // Opcode::TUPLE => todo!(),
             // Opcode::EMPTY_TUPLE => todo!(),

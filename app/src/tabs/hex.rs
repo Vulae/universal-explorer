@@ -18,15 +18,14 @@ const BYTE_CHAR_MAP: [Option<char>; 256] = [
     Some('P'), Some('Q'), Some('R'), Some('S'), Some('T'), Some('U'), Some('V'), Some('W'), Some('X'), Some('Y'), Some('Z'), Some('['), Some(CBS), Some(']'), Some('^'), Some('_'),
     Some('`'), Some('a'), Some('b'), Some('c'), Some('d'), Some('e'), Some('f'), Some('g'), Some('h'), Some('i'), Some('j'), Some('k'), Some('l'), Some('m'), Some('n'), Some('o'),
     Some('p'), Some('q'), Some('r'), Some('s'), Some('t'), Some('u'), Some('v'), Some('w'), Some('x'), Some('y'), Some('z'), Some('{'), Some('|'), Some('}'), Some('~'), None     ,
-    // TODO: https://www.lookuptables.com/text/extended-ascii-table
-    None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     ,
-    None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     ,
-    None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     ,
-    None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     ,
-    None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     ,
-    None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     ,
-    None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     ,
-    None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     , None     ,
+    Some('Ç'), Some('ü'), Some('é'), Some('â'), Some('ä'), Some('à'), Some('å'), Some('ç'), Some('ê'), Some('ë'), Some('è'), Some('ï'), Some('î'), Some('ì'), Some('Ä'), Some('Å'),
+    Some('É'), Some('§'), Some('Æ'), Some('ô'), Some('ö'), Some('ò'), Some('û'), Some('ù'), Some('ÿ'), Some('Ö'), Some('Ü'), Some('¢'), Some('£'), Some('¥'), Some('₧'), Some('ƒ'),
+    Some('á'), Some('í'), Some('ó'), Some('ú'), Some('ñ'), Some('Ñ'), Some('ª'), Some('º'), Some('¿'), Some('⌐'), Some('¬'), Some('½'), Some('¼'), Some('¡'), Some('«'), Some('»'),
+    Some('░'), Some('▒'), Some('▓'), Some('│'), Some('┤'), Some('╡'), Some('╢'), Some('╖'), Some('╕'), Some('╣'), Some('║'), Some('╗'), Some('╝'), Some('╜'), Some('╛'), Some('┐'),
+    Some('└'), Some('┴'), Some('├'), Some('├'), Some('─'), Some('┼'), Some('╞'), Some('╟'), Some('╚'), Some('╔'), Some('╩'), Some('╦'), Some('╠'), Some('═'), Some('╬'), Some('╧'),
+    Some('╨'), Some('╤'), Some('╥'), Some('╙'), Some('╘'), Some('╒'), Some('╓'), Some('╫'), Some('╪'), Some('┘'), Some('┌'), Some('█'), Some('▄'), Some('▌'), Some('▐'), Some('▀'),
+    Some('α'), Some('ß'), Some('Γ'), Some('π'), Some('Σ'), Some('σ'), Some('µ'), Some('τ'), Some('Φ'), Some('Θ'), Some('Ω'), Some('δ'), Some('∞'), Some('φ'), Some('ε'), Some('∩'),
+    Some('≡'), Some('±'), Some('≥'), Some('≤'), Some('⌠'), Some('⌡'), Some('÷'), Some('≈'), Some('°'), Some('∙'), Some('·'), Some('√'), Some('ⁿ'), Some('²'), Some('■'), None     ,
 ];
 
 const COLOR_POSITION: egui::Color32 = egui::Color32::WHITE;
