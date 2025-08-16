@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use egui::Widget as _;
 use util_general::LevenshteinDistance;
 use util_vfs::VirtualFileSystemPath;
@@ -68,10 +70,9 @@ impl VirtualFsTab {
                         return;
                     }
                     icons.insert(entry.clone(), EntryIconLoadState::Loading);
-                    // TODO: Don't just spawn a thread and hope it goes well.
-                    std::thread::spawn({
+                    rayon::spawn({
                         let entry = entry.clone();
-                        let icons = self.icons.clone();
+                        let icons = Arc::clone(&self.icons);
                         let fs = self.fs.clone();
                         let ctx = ctx.clone();
                         move || {
