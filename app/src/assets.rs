@@ -7,6 +7,9 @@ pub static LUCIDE_FOLDER: egui::ImageSource<'static> =
 pub static LUCIDE_FILE_ARCHIVE: egui::ImageSource<'static> =
     egui::include_image!("../assets/lucide/file-archive.svg");
 
+pub static LUCIDE_FILE_CODE: egui::ImageSource<'static> =
+    egui::include_image!("../assets/lucide/file-code.svg");
+
 pub static LUCIDE_PLUS: egui::ImageSource<'static> =
     egui::include_image!("../assets/lucide/plus.svg");
 

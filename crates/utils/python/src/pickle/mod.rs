@@ -5,7 +5,10 @@ use reader::Opcode;
 use thiserror::Error;
 
 mod de;
+mod extract;
 mod reader;
+
+pub use extract::*;
 
 #[derive(Debug, Error)]
 pub enum PickleError {
@@ -24,6 +27,10 @@ pub enum PickleError {
     OpcodeError(Opcode, &'static str),
     #[error("Couldn't convert bigint: {0:?}")]
     CouldntConvertBigInt(Box<[u8]>),
+    #[error("Fail to extract pickle value: {0}")]
+    FailToExtract(&'static str),
+    #[error("Deduping a pickle that contains itself recursively is impossible")]
+    DedupeRecursivePickle,
     #[error(transparent)]
     FromUtf8Error(#[from] std::string::FromUtf8Error),
     #[error(transparent)]

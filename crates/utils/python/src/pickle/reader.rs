@@ -1,7 +1,12 @@
 #![allow(unused)]
 //! https://github.com/python/cpython/blob/main/Lib/pickle.py
 
-use std::{cell::RefCell, collections::HashMap, io::Read, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    io::Read,
+    rc::Rc,
+};
 use util_general::ReadExt as _;
 
 use super::{Class, Module, PickleError, Value};
@@ -32,6 +37,19 @@ pub(crate) fn int_from_bytes(bytes: &[u8]) -> Result<i128, PickleError> {
     }
 
     Ok(i128::from_le_bytes(padded_bytes))
+}
+
+// Only works for ASCII control characters.
+fn read_terminated_string<const B: u8>(mut reader: impl Read) -> Result<String, PickleError> {
+    assert!(B < 0x20);
+    let mut bytes = Vec::new();
+    loop {
+        match u8::from_le_bytes(reader.read_const()?) {
+            byte if byte == B => break,
+            byte => bytes.push(byte),
+        }
+    }
+    Ok(String::from_utf8(bytes)?)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -227,8 +245,8 @@ enum ParseValue {
 }
 
 impl ParseValue {
-    fn to_cloned_dedupe(&self) -> Value {
-        match self {
+    fn to_cloned_dedupe(&self, visited: &mut HashSet<usize>) -> Result<Value, PickleError> {
+        Ok(match self {
             ParseValue::None => Value::None,
             ParseValue::Bool(bool) => Value::Bool(*bool),
             ParseValue::Int(int) => Value::Int(*int),
@@ -237,19 +255,24 @@ impl ParseValue {
             ParseValue::Binary(binary) => Value::Binary(binary.clone()),
             ParseValue::List(list) => Value::List(
                 list.iter()
-                    .map(|item| item.borrow().to_cloned_dedupe())
-                    .collect(),
+                    .map(|item| item.borrow().to_cloned_dedupe(visited))
+                    .collect::<Result<_, _>>()?,
             ),
             ParseValue::Dict(dict) => Value::Dict(
                 dict.iter()
-                    .map(|(key, value)| (key.clone(), value.borrow().to_cloned_dedupe()))
-                    .collect(),
+                    .map(|(key, value)| {
+                        Ok((
+                            key.clone(),
+                            shared_parse_value_to_cloned_dedupe(value, visited)?,
+                        ))
+                    })
+                    .collect::<Result<_, PickleError>>()?,
             ),
             ParseValue::Tuple(tuple) => Value::Tuple(
                 tuple
                     .iter()
-                    .map(|item| item.borrow().to_cloned_dedupe())
-                    .collect(),
+                    .map(|item| shared_parse_value_to_cloned_dedupe(item, visited))
+                    .collect::<Result<_, _>>()?,
             ),
             ParseValue::Module(module) => Value::Module(Module {
                 module: module.module.clone(),
@@ -260,19 +283,38 @@ impl ParseValue {
                     module: class.module.module.clone(),
                     name: class.module.name.clone(),
                 },
-                args: class.args.borrow().to_cloned_dedupe(),
-                state: class.state.borrow().to_cloned_dedupe(),
+                args: shared_parse_value_to_cloned_dedupe(&class.args, visited)?,
+                state: shared_parse_value_to_cloned_dedupe(&class.state, visited)?,
                 data: class
                     .data
                     .iter()
-                    .map(|(key, value)| (key.clone(), value.borrow().to_cloned_dedupe()))
-                    .collect(),
+                    .map(|(key, value)| {
+                        Ok((
+                            key.clone(),
+                            shared_parse_value_to_cloned_dedupe(value, visited)?,
+                        ))
+                    })
+                    .collect::<Result<_, PickleError>>()?,
             })),
-        }
+        })
     }
 }
 
 type SharedParseValue = Rc<RefCell<ParseValue>>;
+
+fn shared_parse_value_to_cloned_dedupe(
+    value: &SharedParseValue,
+    visited: &mut HashSet<usize>,
+) -> Result<Value, PickleError> {
+    let ptr = value.as_ptr().addr();
+    if visited.contains(&ptr) {
+        return Err(PickleError::DedupeRecursivePickle);
+    }
+    visited.insert(ptr);
+    let value = value.borrow().to_cloned_dedupe(visited)?;
+    visited.remove(&ptr);
+    Ok(value)
+}
 
 #[derive(Debug, Clone)]
 struct ParseModule {
@@ -403,26 +445,37 @@ struct State {
 impl State {
     fn read<R: Read>(&mut self, opcode: Opcode, mut reader: R) -> Result<(), PickleError> {
         match opcode {
-            Opcode::MARK => {
-                self.stack.push_mark();
-            }
+            Opcode::MARK => self.stack.push_mark(),
             Opcode::STOP => unreachable!(),
             // Opcode::POP => todo!(),
             // Opcode::POP_MARK => todo!(),
             // Opcode::DUP => todo!(),
             // Opcode::FLOAT => todo!(),
             // Opcode::INT => todo!(),
-            Opcode::BININT => {
-                let int = i32::from_le_bytes(reader.read_const()?);
-                self.stack.push(ParseValue::Int(int as i128))?;
-            }
-            // Opcode::BININT1 => todo!(),
+            Opcode::BININT => self.stack.push(ParseValue::Int(i32::from_le_bytes(
+                reader.read_const()?,
+            ) as i128))?,
+            Opcode::BININT1 => self.stack.push(ParseValue::Int(u8::from_le_bytes(
+                reader.read_const()?,
+            ) as i128))?,
             // Opcode::LONG => todo!(),
-            // Opcode::BININT2 => todo!(),
-            // Opcode::NONE => todo!(),
+            Opcode::BININT2 => self.stack.push(ParseValue::Int(u16::from_le_bytes(
+                reader.read_const()?,
+            ) as i128))?,
+            Opcode::NONE => self.stack.push(ParseValue::None)?,
             // Opcode::PERSID => todo!(),
             // Opcode::BINPERSID => todo!(),
-            // Opcode::REDUCE => todo!(),
+            Opcode::REDUCE => {
+                let args = self.stack.pop()?;
+                let module_item = self.stack.pop()?;
+                let ParseValue::Module(module) = &*module_item.borrow() else {
+                    return Err(PickleError::MalformedStack(
+                        "Expected stack item to be module",
+                    ));
+                };
+                let class = module.clone().into_class(args);
+                self.stack.push(ParseValue::Class(class));
+            }
             // Opcode::STRING => todo!(),
             // Opcode::BINSTRING => todo!(),
             Opcode::SHORT_BINSTRING => {
@@ -440,30 +493,56 @@ impl State {
             }
             Opcode::APPEND => {
                 let item = self.stack.pop()?;
-                if let ParseValue::List(list) = &mut *self.stack.last()?.borrow_mut() {
-                    list.push(item);
-                } else {
+                let ParseValue::List(list) = &mut *self.stack.last()?.borrow_mut() else {
                     return Err(PickleError::OpcodeError(
                         opcode,
                         "Last stack item must be a list",
                     ));
-                }
+                };
+                list.push(item);
             }
-            // Opcode::BUILD => todo!(),
-            // Opcode::GLOBAL => todo!(),
+            Opcode::BUILD => {
+                let state = self.stack.pop()?;
+                let class_item = self.stack.pop()?;
+                let ParseValue::Class(class) = &mut *class_item.borrow_mut() else {
+                    return Err(PickleError::MalformedStack(
+                        "Expected stack item to be class",
+                    ));
+                };
+                let mut class = class.clone();
+                class.state = state;
+                self.stack.push(ParseValue::Class(class));
+            }
+            Opcode::GLOBAL => self.stack.push(ParseValue::Module(ParseModule::new(
+                read_terminated_string::<b'\n'>(&mut reader)?,
+                read_terminated_string::<b'\n'>(&mut reader)?,
+            )))?,
             // Opcode::DICT => todo!(),
             Opcode::EMPTY_DICT => {
                 self.stack.push(ParseValue::Dict(HashMap::new()))?;
             }
-            // Opcode::APPENDS => todo!(),
+            Opcode::APPENDS => {
+                let mut items = self.stack.pop_mark()?;
+                let ParseValue::List(list) = &mut *self.stack.last()?.borrow_mut() else {
+                    return Err(PickleError::OpcodeError(
+                        opcode,
+                        "Last stack item must be a list",
+                    ));
+                };
+                list.append(&mut items);
+            }
             // Opcode::GET => todo!(),
             Opcode::BINGET => {
                 let index = u8::from_le_bytes(reader.read_const()?);
-                let item = Rc::clone(self.memo.get(index as u64)?);
+                let item = self.memo.get(index as u64)?.clone();
                 self.stack.push(item)?;
             }
             // Opcode::INST => todo!(),
-            // Opcode::LONG_BINGET => todo!(),
+            Opcode::LONG_BINGET => {
+                let index = u32::from_le_bytes(reader.read_const()?);
+                let item = self.memo.get(index as u64)?.clone();
+                self.stack.push(item)?;
+            }
             // Opcode::LIST => todo!(),
             Opcode::EMPTY_LIST => {
                 self.stack.push(ParseValue::List(Vec::new()))?;
@@ -482,10 +561,38 @@ impl State {
                     self.stack.last()?.clone(),
                 );
             }
-            // Opcode::SETITEM => todo!(),
-            // Opcode::TUPLE => todo!(),
-            // Opcode::EMPTY_TUPLE => todo!(),
+            Opcode::SETITEM => {
+                let item = self.stack.pop()?;
+                let key_binding = self.stack.pop()?;
+                let ParseValue::String(key) = &*key_binding.borrow() else {
+                    return Err(PickleError::OpcodeError(
+                        opcode,
+                        "Expected key for dict to be a string",
+                    ));
+                };
+                let mut binding = self.stack.last()?.borrow_mut();
+                let dict = match &mut *binding {
+                    ParseValue::Dict(dict) => dict,
+                    ParseValue::Class(class) => &mut class.data,
+                    _ => {
+                        return Err(PickleError::OpcodeError(
+                            opcode,
+                            "Last stack item must be a dict or class",
+                        ));
+                    }
+                };
+                dict.insert(key.to_owned(), item);
+            }
+            Opcode::TUPLE => {
+                let mut items = self.stack.pop_mark()?;
+                self.stack
+                    .push(ParseValue::Tuple(items.into_boxed_slice()))?;
+            }
+            Opcode::EMPTY_TUPLE => self
+                .stack
+                .push(ParseValue::Tuple(Vec::new().into_boxed_slice()))?,
             Opcode::SETITEMS => {
+                // TODO: Cleanup the chunks code
                 let items = self.stack.pop_mark()?;
                 let mut binding = self.stack.last()?.borrow_mut();
                 let dict = match &mut *binding {
@@ -516,20 +623,43 @@ impl State {
             }
             // Opcode::BINFLOAT => todo!(),
             Opcode::PROTO => unreachable!(),
-            // Opcode::NEWOBJ => todo!(),
+            Opcode::NEWOBJ => {
+                let args = self.stack.pop()?;
+                let module_item = self.stack.pop()?;
+                let ParseValue::Module(module) = &*module_item.borrow() else {
+                    return Err(PickleError::MalformedStack(
+                        "Expected stack item to be module",
+                    ));
+                };
+                let class = module.clone().into_class(args);
+                self.stack.push(ParseValue::Class(class));
+            }
             // Opcode::EXT1 => todo!(),
             // Opcode::EXT2 => todo!(),
             // Opcode::EXT4 => todo!(),
-            // Opcode::TUPLE1 => todo!(),
-            // Opcode::TUPLE2 => todo!(),
+            Opcode::TUPLE1 => {
+                let items = vec![self.stack.pop()?];
+                self.stack
+                    .push(ParseValue::Tuple(items.into_boxed_slice()))?;
+            }
+            Opcode::TUPLE2 => {
+                let mut items = vec![self.stack.pop()?, self.stack.pop()?];
+                items.reverse();
+                self.stack
+                    .push(ParseValue::Tuple(items.into_boxed_slice()))?;
+            }
             Opcode::TUPLE3 => {
                 let mut items = vec![self.stack.pop()?, self.stack.pop()?, self.stack.pop()?];
                 items.reverse();
                 self.stack
                     .push(ParseValue::Tuple(items.into_boxed_slice()))?;
             }
-            // Opcode::NEWTRUE => todo!(),
-            // Opcode::NEWFALSE => todo!(),
+            Opcode::NEWTRUE => {
+                self.stack.push(ParseValue::Bool(true))?;
+            }
+            Opcode::NEWFALSE => {
+                self.stack.push(ParseValue::Bool(false))?;
+            }
             Opcode::LONG1 => {
                 let length = u8::from_le_bytes(reader.read_const()?);
                 let bytes = reader.read_var(length as usize)?;
@@ -584,8 +714,13 @@ pub fn read_pickle<R: Read>(mut reader: R) -> Result<Value, PickleError> {
                 }
                 state.protocol = Protocol::from_byte(u8::from_le_bytes(reader.read_const()?))?;
             }
-            Opcode::STOP => return Ok(state.stack.pop()?.borrow().to_cloned_dedupe()),
-            _ => state.read(opcode, &mut reader)?,
+            Opcode::STOP => {
+                return shared_parse_value_to_cloned_dedupe(
+                    state.stack.last()?,
+                    &mut HashSet::new(),
+                );
+            }
+            opcode => state.read(opcode, &mut reader)?,
         }
 
         first = true;

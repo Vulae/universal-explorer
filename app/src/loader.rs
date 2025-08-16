@@ -87,6 +87,25 @@ pub fn try_open_tab_from_fs_and_path<P: Into<VirtualFileSystemPath>>(
         )))));
     }
 
+    #[cfg(feature = "renpy")]
+    if renpy::is_rpyc_file(&path) {
+        let mut rpyc_file = renpy::rpyc::RenPyCompiledScriptFile::load(fs.open_file(&path)?)?;
+        let chunk = rpyc_file
+            .chunks()
+            .into_iter()
+            .find(|chunk| matches!(chunk.slot(), renpy::rpyc::RenPyCompiledScriptSlot::Original));
+        if let Some(chunk) = chunk {
+            let pickle = chunk.read_pickle(rpyc_file.reader_mut())?;
+            let code = renpy::renpy_parse_code(pickle)?;
+            return Ok(Some(Tab::new(Box::new(tabs::TextTab::new(
+                path.name()
+                    .map(|v| v.to_owned())
+                    .unwrap_or(path.to_string()),
+                code,
+            )))));
+        }
+    }
+
     if path.is_file() {
         let mut file = fs.open_file(&path)?;
 
@@ -178,6 +197,13 @@ pub fn entry_icon<P: Into<VirtualFileSystemPath>>(
     if renpy::is_rpa_file(&path) {
         return Ok(Some(LoaderImage::Source(
             assets::LUCIDE_FILE_ARCHIVE.to_owned(),
+        )));
+    }
+
+    #[cfg(feature = "renpy")]
+    if renpy::is_rpyc_file(&path) {
+        return Ok(Some(LoaderImage::Source(
+            assets::LUCIDE_FILE_CODE.to_owned(),
         )));
     }
 
